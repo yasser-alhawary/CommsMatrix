@@ -262,6 +262,4 @@ do
 		grep -q ${BlockName}_TestersIPs $TMPCONF 	&&  TestersIPs=$(grep ${BlockName}_TestersIPs $TMPCONF|cut -d ':' -f2)		&& Validate_IPS $TestersIPs
         grep -q ${BlockName}_ListenersIPs $TMPCONF 	&&  ListenersIPs=$(grep ${BlockName}_ListenersIPs $TMPCONF|cut -d ':' -f2)	&& Validate_IPS $ListenersIPs
 		grep -q ${BlockName}_ListentDurationInMinutes $TMPCONF 	&& 	ListentDurationInMinutes=$(grep ${BlockName}_ListentDurationInMinutes $TMPCONF|cut -d ':' -f2) && Validate_ListentDurationInMinutes $ListentDurationInMinutes
-
-		
 done
