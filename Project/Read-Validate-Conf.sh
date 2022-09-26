@@ -89,7 +89,7 @@ do
 		;;
 	esac
 done
-#Check If Attribute is not fulfilled
+#Check If Attributes is not fulfilled properly
 for BlockName in ${BlocksNames}
 do
 	if [ $BlockName != "Default" ]
@@ -150,7 +150,7 @@ do
 	fi
 done
 
-#Validate IPS and Ports Values
+#####
 		Validate_Ports() {
 			for Ports in $(echo $1|tr ',' ' ')
 				do
@@ -159,6 +159,16 @@ done
 					then
 						Start_Port=$(echo $Ports|cut -d '-' -f1 )
 						End_Port=$(echo $Ports|cut -d '-' -f2 )
+						if ! [[ $Start_Port == ?(-)+([0-9]) ]] 
+						then
+							echo port number $start_port is not an intger 
+							exit 3
+						fi
+						if ! [[ $End_Port == ?(-)+([0-9]) ]] 
+						then
+							echo port number $End_Port is not an intger 
+							exit 3
+						fi
 						if [ $Start_Port -lt 0 -o $Start_Port -gt 65536 -o $End_Port -lt 0 -o $End_Port -gt 65536 ]
 						then
 							echo port number should have value between 0 65536 , check port range $Start_Port to $End_Port
@@ -171,6 +181,11 @@ done
 							fi
 						fi
 					else
+						if ! [[ $Ports == ?(-)+([0-9]) ]] 
+						then
+							echo port number $Ports is not an intger 
+							exit 3
+						fi
 						if [ $Ports -lt 0 -o $Ports -gt 65536 ]
 						then 
 							echo invalid port specified $Ports , allowed values between 0 65536
@@ -224,14 +239,29 @@ done
 				fi
 			done
 		}
+		Validate_ListentDurationInMinutes () {
+					if [[ $1 == ?(-)+([0-9]) ]] 
+					then
+						if [[ $1 -eq 0 ]]
+						then
+						echo ListentDurationInMinutes $1 must be greater than 0
+						exit 3
+						fi
+					else 
+
+						echo ListentDurationInMinutes $1 is not an intger number 
+						exit 3
+					fi
+		}
+#Validate IPS/Ports/wait Values
 for BlockName in ${BlocksNames}
 do
-	if [ $BlockName != "Default" ]
-	then
 	    grep -q ${BlockName}_TCPPorts $TMPCONF	 	&&  TCPPorts=$( grep ${BlockName}_TCPPorts $TMPCONF|cut -d ':' -f2 ) 		&& Validate_Ports $TCPPorts
         grep -q ${BlockName}_UDPPorts $TMPCONF 		&&  UDPPorts=$( grep ${BlockName}_UDPPorts $TMPCONF|cut -d ':' -f2 ) 		&& Validate_Ports $UDPPorts
 		grep -q ${BlockName}_IPs $TMPCONF 			&&  IPs=$(grep ${BlockName}_IPs $TMPCONF|cut -d ':' -f2) 					&& Validate_IPS $IPs
 		grep -q ${BlockName}_TestersIPs $TMPCONF 	&&  TestersIPs=$(grep ${BlockName}_TestersIPs $TMPCONF|cut -d ':' -f2)		&& Validate_IPS $TestersIPs
         grep -q ${BlockName}_ListenersIPs $TMPCONF 	&&  ListenersIPs=$(grep ${BlockName}_ListenersIPs $TMPCONF|cut -d ':' -f2)	&& Validate_IPS $ListenersIPs
-	fi
+		grep -q ${BlockName}_ListentDurationInMinutes $TMPCONF 	&& 	ListentDurationInMinutes=$(grep ${BlockName}_ListentDurationInMinutes $TMPCONF|cut -d ':' -f2) && Validate_ListentDurationInMinutes $ListentDurationInMinutes
+
+		
 done
