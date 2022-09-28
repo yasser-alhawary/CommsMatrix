@@ -1,0 +1,185 @@
+./.git/FETCH_HEAD:2ceb70ae0a88f156c191df389bcbfd5e078573bf	not-for-merge	branch 'master' of github.com:yasser-alhawary/TestCommsMatrix
+./.git/hooks/commit-msg.sample:	echo >&2 Duplicate Signed-off-by lines.
+./.git/hooks/fsmonitor-watchman.sample:use IPC::Open2;
+./.git/hooks/fsmonitor-watchman.sample:# The hook is passed a version (currently 2) and last update token
+./.git/hooks/fsmonitor-watchman.sample:if ($version ne 2) {
+./.git/hooks/fsmonitor-watchman.sample:	my $pid = open2(\*CHLD_OUT, \*CHLD_IN, 'watchman -j --no-pretty')
+./.git/hooks/fsmonitor-watchman.sample:	or die "open2() failed: $!\n" .
+./.git/hooks/fsmonitor-watchman.sample:		$working_dir = Win32::GetCwd();
+./.git/hooks/pre-commit.sample:if git rev-parse --verify HEAD >/dev/null 2>&1
+./.git/hooks/pre-commit.sample:exec 1>&2
+./.git/hooks/pre-push.sample:# $2 -- URL to which the push is being done
+./.git/hooks/pre-push.sample:url="$2"
+./.git/hooks/pre-push.sample:			echo >&2 "Found WIP commit in $local_ref, not pushing"
+./.git/hooks/pre-rebase.sample:# Copyright (c) 2006, 2008 Junio C Hamano
+./.git/hooks/pre-rebase.sample:# $2 -- the branch being rebased (or empty when rebasing the current branch).
+./.git/hooks/pre-rebase.sample:if test "$#" = 2
+./.git/hooks/pre-rebase.sample:	topic="refs/heads/$2"
+./.git/hooks/pre-rebase.sample:	echo >&2 "No such branch $topic"
+./.git/hooks/pre-rebase.sample:	echo >&2 "$topic is fully merged to master; better remove it."
+./.git/hooks/pre-rebase.sample:only_next_2=`git rev-list ^master           ${publish} | sort`
+./.git/hooks/pre-rebase.sample:if test "$only_next_1" = "$only_next_2"
+./.git/hooks/pre-rebase.sample:		echo >&2 "$topic is already up to date with master"
+./.git/hooks/pre-rebase.sample:				[$1 => $2];
+./.git/hooks/pre-rebase.sample:			} split(/\n/, $ARGV[2])) {
+./.git/hooks/pre-rebase.sample:(2) ... if a topic branch has been fully merged to "master".
+./.git/hooks/pre-rebase.sample:To compute (2):
+./.git/hooks/pre-receive.sample:			echo "echo from the pre-receive-hook: ${value#*=}" >&2
+./.git/hooks/prepare-commit-msg.sample:COMMIT_SOURCE=$2
+./.git/hooks/push-to-checkout.sample:	echo >&2 "$*"
+./.git/hooks/push-to-checkout.sample:if git cat-file -e HEAD 2>/dev/null
+./.git/hooks/update.sample:oldrev="$2"
+./.git/hooks/update.sample:	echo "Don't run this script from the command line." >&2
+./.git/hooks/update.sample:	echo " (if you want, you could supply GIT_DIR then run" >&2
+./.git/hooks/update.sample:	echo "  $0 <ref> <oldrev> <newrev>)" >&2
+./.git/hooks/update.sample:	echo "usage: $0 <ref> <oldrev> <newrev>" >&2
+./.git/hooks/update.sample:	echo "*** Project description file hasn't been set" >&2
+./.git/hooks/update.sample:			echo "*** The un-annotated tag, $short_refname, is not allowed in this repository" >&2
+./.git/hooks/update.sample:			echo "*** Use 'git tag [ -a | -s ]' for tags you want to propagate." >&2
+./.git/hooks/update.sample:			echo "*** Deleting a tag is not allowed in this repository" >&2
+./.git/hooks/update.sample:		if [ "$allowmodifytag" != "true" ] && git rev-parse $refname > /dev/null 2>&1
+./.git/hooks/update.sample:			echo "*** Tag '$refname' already exists." >&2
+./.git/hooks/update.sample:			echo "*** Modifying a tag is not allowed in this repository." >&2
+./.git/hooks/update.sample:			echo "*** Creating a branch is not allowed in this repository" >&2
+./.git/hooks/update.sample:			echo "*** Deleting a branch is not allowed in this repository" >&2
+./.git/hooks/update.sample:			echo "*** Deleting a tracking branch is not allowed in this repository" >&2
+./.git/hooks/update.sample:		echo "*** Update hook: unknown type of update to ref $refname of type $newrev_type" >&2
+Binary file ./.git/index matches
+./.git/logs/HEAD:0000000000000000000000000000000000000000 2ceb70ae0a88f156c191df389bcbfd5e078573bf Yasser Abdelhak <NB28971@novabase.pt> 1664000436 +0200	commit (initial): initial
+./.git/logs/HEAD:2ceb70ae0a88f156c191df389bcbfd5e078573bf 2631c14f9c803f89ebcfc8e132d121fde5ee4cba Yasser Abdelhak <NB28971@novabase.pt> 1664135228 +0200	commit: ReadAndVerify
+./.git/logs/HEAD:2631c14f9c803f89ebcfc8e132d121fde5ee4cba bf64295209fb2599f02d2b3cb4d834929bb93006 Yasser Abdelhak <NB28971@novabase.pt> 1664193898 +0200	commit: R&V bug fix and port/ip validation
+./.git/logs/HEAD:bf64295209fb2599f02d2b3cb4d834929bb93006 68d83b00bd62d08619a0b5595d88062e9bdca3c5 Yasser Abdelhak <NB28971@novabase.pt> 1664196067 +0200	commit: R&V bug fix and port/ip validation
+./.git/logs/HEAD:68d83b00bd62d08619a0b5595d88062e9bdca3c5 33adeb05df6c0f72201c07ab935bd10523117708 Yasser Abdelhak <NB28971@novabase.pt> 1664196164 +0200	commit: R&V bug fix and port/ip validation
+./.git/logs/HEAD:33adeb05df6c0f72201c07ab935bd10523117708 606caa480eea5f58826c5dbc1a493345db0a5dca Yasser Abdelhak <NB28971@novabase.pt> 1664196169 +0200	commit: R&V bug fix and port/ip validation
+./.git/logs/refs/heads/master:0000000000000000000000000000000000000000 2ceb70ae0a88f156c191df389bcbfd5e078573bf Yasser Abdelhak <NB28971@novabase.pt> 1664000436 +0200	commit (initial): initial
+./.git/logs/refs/heads/master:2ceb70ae0a88f156c191df389bcbfd5e078573bf 2631c14f9c803f89ebcfc8e132d121fde5ee4cba Yasser Abdelhak <NB28971@novabase.pt> 1664135228 +0200	commit: ReadAndVerify
+./.git/logs/refs/heads/master:2631c14f9c803f89ebcfc8e132d121fde5ee4cba bf64295209fb2599f02d2b3cb4d834929bb93006 Yasser Abdelhak <NB28971@novabase.pt> 1664193898 +0200	commit: R&V bug fix and port/ip validation
+./.git/logs/refs/heads/master:bf64295209fb2599f02d2b3cb4d834929bb93006 68d83b00bd62d08619a0b5595d88062e9bdca3c5 Yasser Abdelhak <NB28971@novabase.pt> 1664196067 +0200	commit: R&V bug fix and port/ip validation
+./.git/logs/refs/heads/master:68d83b00bd62d08619a0b5595d88062e9bdca3c5 33adeb05df6c0f72201c07ab935bd10523117708 Yasser Abdelhak <NB28971@novabase.pt> 1664196164 +0200	commit: R&V bug fix and port/ip validation
+./.git/logs/refs/heads/master:33adeb05df6c0f72201c07ab935bd10523117708 606caa480eea5f58826c5dbc1a493345db0a5dca Yasser Abdelhak <NB28971@novabase.pt> 1664196169 +0200	commit: R&V bug fix and port/ip validation
+./.git/logs/refs/remotes/origin/master:0000000000000000000000000000000000000000 2ceb70ae0a88f156c191df389bcbfd5e078573bf Yasser Abdelhak <NB28971@novabase.pt> 1664000478 +0200	update by push
+./.git/logs/refs/remotes/origin/master:2ceb70ae0a88f156c191df389bcbfd5e078573bf 2631c14f9c803f89ebcfc8e132d121fde5ee4cba Yasser Abdelhak <NB28971@novabase.pt> 1664135241 +0200	update by push
+./.git/logs/refs/remotes/origin/master:2631c14f9c803f89ebcfc8e132d121fde5ee4cba bf64295209fb2599f02d2b3cb4d834929bb93006 Yasser Abdelhak <NB28971@novabase.pt> 1664193906 +0200	update by push
+./.git/logs/refs/remotes/origin/master:bf64295209fb2599f02d2b3cb4d834929bb93006 68d83b00bd62d08619a0b5595d88062e9bdca3c5 Yasser Abdelhak <NB28971@novabase.pt> 1664196072 +0200	update by push
+./.git/logs/refs/remotes/origin/master:68d83b00bd62d08619a0b5595d88062e9bdca3c5 606caa480eea5f58826c5dbc1a493345db0a5dca Yasser Abdelhak <NB28971@novabase.pt> 1664196198 +0200	update by push
+Binary file ./.git/objects/07/1192761ff8044be2432ac2d5002fe753886843 matches
+Binary file ./.git/objects/17/8e764d7875d45a8a5092825249f9135b473e1d matches
+Binary file ./.git/objects/19/44259c1eb793dada385d4e8a7b63a58226a866 matches
+Binary file ./.git/objects/19/81839b30be6dc8b5ae5a236acc6d8b7c56a301 matches
+Binary file ./.git/objects/26/31c14f9c803f89ebcfc8e132d121fde5ee4cba matches
+Binary file ./.git/objects/27/3377e6911c6e41442454e73f6a9ffbb67092a2 matches
+Binary file ./.git/objects/31/a0fe2e68971d196d3c26f2b116b126ef47a456 matches
+Binary file ./.git/objects/3f/ab5d6baff464a213ca8afbc41eee817971b2f2 matches
+Binary file ./.git/objects/44/8f016819882ad525664d6203934a3075a63835 matches
+Binary file ./.git/objects/51/cf48bc617dd72e0489efb7e01872afa1a584cc matches
+Binary file ./.git/objects/53/c32e7b2d33595e6560530f12e8c1d3b33be3f2 matches
+Binary file ./.git/objects/65/fe06385146f50037a175d14d867e2542ea36c1 matches
+Binary file ./.git/objects/68/6507c24d21f7d6048aa91a2d7897a1ed72a402 matches
+Binary file ./.git/objects/78/810beec7a9e91e0f66c5d58d148f6db89ed03f matches
+Binary file ./.git/objects/7a/e9a86e3f1c105837a495dfd5d65994bb1931d2 matches
+Binary file ./.git/objects/7f/c76966c8c165c227a5c35d1f05b0e341bb051d matches
+Binary file ./.git/objects/83/93d5718ed41aab9ab75ad9d38a733fc2a3dae5 matches
+Binary file ./.git/objects/83/a4847eb9e1bdaa976196ece15f7fc9bd67ea11 matches
+Binary file ./.git/objects/85/0cf839d4acff2cf479537ec40ab7c8ae119244 matches
+Binary file ./.git/objects/a8/6cec2b21228c516b36d38fb3029d58c30d2d07 matches
+Binary file ./.git/objects/b3/0716b01f6423bbed158365d8521c8b7c738fc0 matches
+Binary file ./.git/objects/c1/c01ef1b4ed2f96c9c12ba47d3de0797ab57832 matches
+Binary file ./.git/objects/c2/507453759e9325dfe4414ad40741b9c3a7201f matches
+Binary file ./.git/objects/ce/d7a3d70c69ce3ca941b20acee2e1e26203408f matches
+./.git/objects/d7/f0fa7d0ce18978e609860eda62838492053900:x}=Â0†ïW\Ûr—ÖÒfÔ.‚…v*‰F–šôÿ{‚âÇàòrÏ=§'¯“¢«±5WµLñ¿™,ÎÂÌ,å‚Õ“ƒÑ¸Ø.³ŠÖ»½ë¬[¢	2!D·“?ßèy®í_üiž½pÜõ½Ÿc”¦1-0+†ö5GÄŒøÇcÉÁU&¸„}$¬©9UuÎ)è³eùÙR…°¾)§•{©F>«á%Ù°¥`‹	¿LóÍvÕ¿P_hà“ÜZL
+Binary file ./.git/objects/e7/a14080f8c8c9df804e68763446a34c194c8047 matches
+Binary file ./.git/objects/ea/40fdbe6072ede2453005045fa4dd5915c80ded matches
+Binary file ./.git/objects/fb/fbeee02c5a54baf997aab2dbd98e62b94f45f8 matches
+Binary file ./.git/objects/ff/b45e7bbe443cb292deb1e4516880f73b9df918 matches
+./.git/refs/heads/master:606caa480eea5f58826c5dbc1a493345db0a5dca
+./.git/refs/remotes/origin/master:606caa480eea5f58826c5dbc1a493345db0a5dca
+./Project/Generate-Listener-Scripts.sh:                End_IP=$(echo $IPRange|cut -d '-' -f2 )
+./Project/Generate-Listener-Scripts.sh:                Start_IP_OCT2=$(echo $Start_IP|cut -d'.' -f2)
+./Project/Generate-Listener-Scripts.sh:                End_IP_OCT2=$(echo $End_IP|cut -d'.' -f2)
+./Project/Generate-Listener-Scripts.sh:                    Expanded_ListenersIPs="$Expanded_ListenersIPs ${Start_IP_OCT1}.${Start_IP_OCT2}.${Start_IP_OCT3}.${IP}"
+./Project/Generate-Listener-Scripts.sh:                End_IP=$(echo $IPRange|cut -d '-' -f2 )
+./Project/Generate-Listener-Scripts.sh:                Start_IP_OCT2=$(echo $Start_IP|cut -d'.' -f2)
+./Project/Generate-Listener-Scripts.sh:                End_IP_OCT2=$(echo $End_IP|cut -d'.' -f2)
+./Project/Generate-Listener-Scripts.sh:                    Expanded_TestersIPs="$Expanded_TestersIPs ${Start_IP_OCT1}.${Start_IP_OCT2}.${Start_IP_OCT3}.${IP}"
+./Project/Generate-Listener-Scripts.sh:                End_Port=\$(echo \${Ports}|cut -d '-' -f2)
+./Project/Generate-Listener-Scripts.sh:                    nc -w 2 -z ${1} \$Port
+./Project/Generate-Listener-Scripts.sh:                nc -w 2 -z ${1} \$Ports
+./Project/Generate-Listener-Scripts.sh:#        End_Port=\$(echo \${Ports}|cut -d '-' -f2)
+./Project/Generate-Listener-Scripts.sh:#            echo '' |nc -u -w 2 ${1} \$Port
+./Project/Generate-Listener-Scripts.sh:#        echo ''|nc -u -w 2 ${1} \$Ports
+./Project/Generate-Listener-Scripts.sh:        Mode=$(grep ${BlockName}_Mode $CONFPATH|cut -d':' -f2)
+./Project/Generate-Listener-Scripts.sh:        ListentDurationInMinutes=$(grep ${BlockName}_ListentDurationInMinutes $CONFPATH|cut -d':' -f2)
+./Project/Generate-Listener-Scripts.sh:        grep -q ${BlockName}_TCPPorts $CONFPATH &&  TCPPorts=$( grep ${BlockName}_TCPPorts $CONFPATH|cut -d ':' -f2 )
+./Project/Generate-Listener-Scripts.sh:        grep -q ${BlockName}_UDPPorts $CONFPATH &&  UDPPorts=$( grep ${BlockName}_UDPPorts $CONFPATH|cut -d ':' -f2 )
+./Project/Generate-Listener-Scripts.sh:        [ $Mode = bi ] && ListenersIPs=$(grep ${BlockName}_IPs $CONFPATH|cut -d':' -f2) || ListenersIPs=$(grep ${BlockName}_ListenersIPs $CONFPATH|cut -d':' -f2)
+./Project/Generate-Tester-Scripts.sh:                        End_Port=\$(echo \${Ports}|cut -d '-' -f2)
+./Project/Generate-Tester-Scripts.sh:                        for retry in 1 2 3
+./Project/Generate-Tester-Scripts.sh:                            nc -z -w 2 ${ListenerIP} \${End_Port} &> /dev/null
+./Project/Generate-Tester-Scripts.sh:                                    nc -vz -w 2 ${ListenerIP} \${port}   &>> /tmp/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/${TesterIP}-${ListenerIP}.txt
+./Project/Generate-Tester-Scripts.sh:                        nc -vz -w 2 ${ListenerIP} \${Ports}   &>> /tmp/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/${TesterIP}-${ListenerIP}.txt
+./Project/Generate-Tester-Scripts.sh:#        End_Port=\$(echo \${Ports}|cut -d '-' -f2)
+./Project/Generate-Tester-Scripts.sh:#            echo '' |nc -u -w 2 ${ListenerIP} \$Port
+./Project/Generate-Tester-Scripts.sh:#        echo ''|nc -u -w 2 ${ListenerIP} \$Ports
+./Project/Generate-Tester-Scripts.sh:        Mode=$(grep ${BlockName}_Mode $CONFPATH|cut -d':' -f2)
+./Project/Generate-Tester-Scripts.sh:        ListentDurationInMinutes=$(grep ${BlockName}_ListentDurationInMinutes $CONFPATH|cut -d':' -f2)
+./Project/Generate-Tester-Scripts.sh:        grep -q ${BlockName}_TCPPorts $CONFPATH &&  TCPPorts=$( grep ${BlockName}_TCPPorts $CONFPATH|cut -d ':' -f2 )
+./Project/Generate-Tester-Scripts.sh:        grep -q ${BlockName}_UDPPorts $CONFPATH &&  UDPPorts=$( grep ${BlockName}_UDPPorts $CONFPATH|cut -d ':' -f2 )
+./Project/Generate-Tester-Scripts.sh:        [ $Mode = bi ] && TestersIPs=$(grep ${BlockName}_IPs $CONFPATH|cut -d':' -f2) || TestersIPs=$(grep ${BlockName}_TestersIPs $CONFPATH|cut -d':' -f2)
+./Project/Generate-Tester-Scripts.sh:        [ $Mode = bi ] && ListenersIPs=$(grep ${BlockName}_IPs $CONFPATH|cut -d':' -f2) || ListenersIPs=$(grep ${BlockName}_ListenersIPs $CONFPATH|cut -d':' -f2)
+./Project/Read-Validate-Save.sh:						BlockAttributeContent=$(echo "${BlockContent}"|grep -i $BlockAttributeName|cut -d':' -f2)
+./Project/Read-Validate-Save.sh:							BlockAttributeContent=$(echo "${BlockContent}"|grep -i $BlockAttributeName|cut -d':' -f2)
+./Project/Read-Validate-Save.sh:								BlockAttributeContent=$(echo "${BlockContent}"|sed -n "/$BlockAttributeName/,/^[A-Za-z]/p"|grep -v ':'|tr '\n' ','|rev|cut -c2-|rev)
+./Project/Read-Validate-Save.sh:						exit 2
+./Project/Read-Validate-Save.sh:					echo "${BlockName}_${Att}:$(grep Default_${Att} $CONFPATH| cut -d':' -f2)" >> $CONFPATH
+./Project/Read-Validate-Save.sh:					echo "Invalid Configuration No $Att set in ${BlockName} and there is no default one" && exit 2
+./Project/Read-Validate-Save.sh:		Mode=$(grep ${BlockName}_Mode $CONFPATH|cut -d':' -f2)
+./Project/Read-Validate-Save.sh:				egrep -q "${BlockName}_TestersIPs|${BlockName}_ListenersIPs" $CONFPATH &&	echo "Block $BlockName has Mode $Mode can not have either TestersIPs or ListenersIPs in the conf file"  && exit 2
+./Project/Read-Validate-Save.sh:					echo "Block $BlockName is in $Mode Mode with no IPs Attribute specified" &&	exit 2
+./Project/Read-Validate-Save.sh:					echo "$BlockName has no tcp or udp ports to test" &&	exit 2
+./Project/Read-Validate-Save.sh:				grep -q "${BlockName}_IPs" $CONFPATH &&	echo Block $BlockName has Mode $Mode can not have IPs Attributes in the conf file && exit 2
+./Project/Read-Validate-Save.sh:					echo "Block $BlockName is in $Mode Mode with no TestersIps Attribute specified" && exit 2
+./Project/Read-Validate-Save.sh:					echo "Block $BlockName is in $Mode Mode with no ListenersIPs Attribute specified" && exit 2
+./Project/Read-Validate-Save.sh:					echo "$BlockName has no tcp or udp ports to test" &&	exit 2
+./Project/Read-Validate-Save.sh:				exit 2
+./Project/Read-Validate-Save.sh:				End_Port=$(echo $Ports|cut -d '-' -f2 )
+./Project/Read-Validate-Save.sh:				End_IP=$(echo $IPs|cut -d '-' -f2 )
+./Project/Read-Validate-Save.sh:					if ! [[ $ipaddress =~  ^(([1-9]?[0-9]|1[0-9][0-9]|2([0-4][0-9]|5[0-5]))\.){3}([1-9]?[0-9]|1[0-9][0-9]|2([0-4][0-9]|5[0-5]))$ ]]
+./Project/Read-Validate-Save.sh:				Start_IP_OCT2=$(echo $Start_IP|cut -d'.' -f2)
+./Project/Read-Validate-Save.sh:				End_IP_OCT2=$(echo $End_IP|cut -d'.' -f2)
+./Project/Read-Validate-Save.sh:				if [ $Start_IP_OCT1 -ne $End_IP_OCT1 -o $Start_IP_OCT2 -ne $End_IP_OCT2 -o $Start_IP_OCT3 -ne $End_IP_OCT3 ]
+./Project/Read-Validate-Save.sh:			if ! [[ ${IPs} =~  ^(([1-9]?[0-9]|1[0-9][0-9]|2([0-4][0-9]|5[0-5]))\.){3}([1-9]?[0-9]|1[0-9][0-9]|2([0-4][0-9]|5[0-5]))$ ]]
+./Project/Read-Validate-Save.sh:	    grep -q ${BlockName}_TCPPorts $CONFPATH	 	&&  TCPPorts=$( grep ${BlockName}_TCPPorts $CONFPATH|cut -d ':' -f2 ) 		&& Validate_Ports $TCPPorts
+./Project/Read-Validate-Save.sh:        grep -q ${BlockName}_UDPPorts $CONFPATH 		&&  UDPPorts=$( grep ${BlockName}_UDPPorts $CONFPATH|cut -d ':' -f2 ) 		&& Validate_Ports $UDPPorts
+./Project/Read-Validate-Save.sh:		grep -q ${BlockName}_IPs $CONFPATH 			&&  IPs=$(grep ${BlockName}_IPs $CONFPATH|cut -d ':' -f2) 					&& Validate_IPS $IPs
+./Project/Read-Validate-Save.sh:		grep -q ${BlockName}_TestersIPs $CONFPATH 	&&  TestersIPs=$(grep ${BlockName}_TestersIPs $CONFPATH|cut -d ':' -f2)		&& Validate_IPS $TestersIPs
+./Project/Read-Validate-Save.sh:        grep -q ${BlockName}_ListenersIPs $CONFPATH 	&&  ListenersIPs=$(grep ${BlockName}_ListenersIPs $CONFPATH|cut -d ':' -f2)	&& Validate_IPS $ListenersIPs
+./Project/Read-Validate-Save.sh:		grep -q ${BlockName}_ListentDurationInMinutes $CONFPATH 	&& 	ListentDurationInMinutes=$(grep ${BlockName}_ListentDurationInMinutes $CONFPATH|cut -d ':' -f2) && Validate_ListentDurationInMinutes $ListentDurationInMinutes
+./Project/remote-execution.sh:        Mode=$(grep ${BlockName}_Mode $CONFPATH|cut -d':' -f2)
+./Project/remote-execution.sh:        User=$(grep ${BlockName}_User $CONFPATH|cut -d':' -f2)
+./Project/remote-execution.sh:        ListentDurationInMinutes=$(grep ${BlockName}_ListentDurationInMinutes $CONFPATH|cut -d':' -f2)
+./Project/remote-execution.sh:        grep -q ${BlockName}_TCPPorts $CONFPATH &&  TCPPorts=$( grep ${BlockName}_TCPPorts $CONFPATH|cut -d ':' -f2 )
+./Project/remote-execution.sh:        grep -q ${BlockName}_UDPPorts $CONFPATH &&  UDPPorts=$( grep ${BlockName}_UDPPorts $CONFPATH|cut -d ':' -f2 )
+./Project/remote-execution.sh:        [ $Mode = bi ] && ListenersIPs=$(grep ${BlockName}_IPs $CONFPATH|cut -d':' -f2) || ListenersIPs=$(grep ${BlockName}_ListenersIPs $CONFPATH|cut -d':' -f2)
+./Project/remote-execution.sh:        [ $Mode = bi ] && TestersIPs=$(grep ${BlockName}_IPs $CONFPATH|cut -d':' -f2) || TestersIPs=$(grep ${BlockName}_TestersIPs $CONFPATH|cut -d':' -f2)
+./Project/Report-Gathering.sh:        Mode=$(grep ${BlockName}_Mode $CONFPATH|cut -d':' -f2)
+./Project/Report-Gathering.sh:        User=$(grep ${BlockName}_User $CONFPATH|cut -d':' -f2)
+./Project/Report-Gathering.sh:        ListentDurationInMinutes=$(grep ${BlockName}_ListentDurationInMinutes $CONFPATH|cut -d':' -f2)
+./Project/Report-Gathering.sh:        grep -q ${BlockName}_TCPPorts $CONFPATH &&  TCPPorts=$( grep ${BlockName}_TCPPorts $CONFPATH|cut -d ':' -f2 )
+./Project/Report-Gathering.sh:        grep -q ${BlockName}_UDPPorts $CONFPATH &&  UDPPorts=$( grep ${BlockName}_UDPPorts $CONFPATH|cut -d ':' -f2 )
+./Project/Report-Gathering.sh:        [ $Mode = bi ] && ListenersIPs=$(grep ${BlockName}_IPs $CONFPATH|cut -d':' -f2) || ListenersIPs=$(grep ${BlockName}_ListenersIPs $CONFPATH|cut -d':' -f2)
+./Project/Report-Gathering.sh:        [ $Mode = bi ] && TestersIPs=$(grep ${BlockName}_IPs $CONFPATH|cut -d':' -f2) || TestersIPs=$(grep ${BlockName}_TestersIPs $CONFPATH|cut -d':' -f2)
+./readme.md:        PortsUDP:     1000-1100,200,2000-2100
+./readme.md:        2.2.2.2-2.2.2.10
+./readme.md:        [Block2]
+./readme.md:        PortsUDP:     1000-1100,200,2000-2100
+./Test-Conf-File.conf:TCPPorts:1-10,200,30-40
+./Test-Conf-File.conf:UDPPorts:1000-1100,2000,2100-2200
+./Test-Conf-File.conf:#192.168.2.121
+./Test-Conf-File.conf:#192.168.2.244
+./Test-Conf-File.conf:#192.168.2.160
+./Test-Conf-File.conf:#192.168.180.128
+./Test-Conf-File.conf:192.168.52.131
+./Test-Conf-File.conf:#192.168.180.129
+./Test-Conf-File.conf:192.168.52.132
+./Test-Conf-File.conf:#192.168.180.130
+./Test-Conf-File.conf:192.168.52.129
