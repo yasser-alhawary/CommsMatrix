@@ -19,22 +19,22 @@ do
             for ListenerIP in  ${Expanded_ListenersIPs}
             do
                     grep -q ${BlockName}_TCPPorts $CONFPATH && ssh -q ${USER}@${ListenerIP} at now < ${LOCALSAVE}/Scripts/${BlockName}/Listeners/${ListenerIP}-tcp.sh &> /dev/null
-#                   grep -q ${BlockName}_UDPPorts $CONFPATH && ssh -q ${USER}@${ListenerIP} at now < ${LOCALSAVE}/Scripts/${BlockName}/Listeners/${ListenerIP}-udp.sh &> /dev/null
+                    grep -q ${BlockName}_UDPPorts $CONFPATH && ssh -q ${USER}@${ListenerIP} at now < ${LOCALSAVE}/Scripts/${BlockName}/Listeners/${ListenerIP}-udp.sh &> /dev/null
                     for TesterIP  in ${Expanded_TestersIPs}
                         do
                             grep -q ${BlockName}_TCPPorts $CONFPATH && ssh -q ${USER}@${TesterIP} at now < ${LOCALSAVE}/Scripts/${BlockName}/Testers/${TesterIP}/${TesterIP}-${ListenerIP}-tcp.sh &> /dev/null
-#                           grep -q ${BlockName}_UDPPorts $CONFPATH && ssh -q ${USER}@${TesterIP} at now < ${LOCALSAVE}/Scripts/${BlockName}/Testers/${TesterIP}/${TesterIP}-${ListenerIP}-tcp.sh &> /dev/null
+                            grep -q ${BlockName}_UDPPorts $CONFPATH && ssh -q ${USER}@${TesterIP} at now < ${LOCALSAVE}/Scripts/${BlockName}/Testers/${TesterIP}/${TesterIP}-${ListenerIP}-udp.sh &> /dev/null
                         done
             done
         else
             for ListenerIP in  ${Expanded_ListenersIPs}
             do
                         grep -q ${BlockName}_TCPPorts $CONFPATH && ssh -q ${USER}@${ListenerIP} sudo at now < ${LOCALSAVE}/Scripts/${BlockName}/Listeners/${ListenerIP}-tcp.sh &> /dev/null
-#                       grep -q ${BlockName}_UDPPorts $CONFPATH && ssh -q ${USER}@${ListenerIP} sudo at now < ${LOCALSAVE}/Scripts/${BlockName}/Listeners/${ListenerIP}-udp.sh &> /dev/null
+                        grep -q ${BlockName}_UDPPorts $CONFPATH && ssh -q ${USER}@${ListenerIP} sudo at now < ${LOCALSAVE}/Scripts/${BlockName}/Listeners/${ListenerIP}-udp.sh &> /dev/null
                     for TesterIP  in ${Expanded_TestersIPs}
                         do
                             grep -q ${BlockName}_TCPPorts $CONFPATH && ssh -q ${USER}@${TesterIP} sudo at now < ${LOCALSAVE}/Scripts/${BlockName}/Testers/${TesterIP}/${TesterIP}-${ListenerIP}-tcp.sh &> /dev/null
-#                          grep -q ${BlockName}_UDPPorts $CONFPATH && ssh -q ${USER}@${TesterIP} sudo at now < ${LOCALSAVE}/Scripts/${BlockName}/Testers/${TesterIP}/${TesterIP}-${ListenerIP}-tcp.sh &> /dev/null
+                            grep -q ${BlockName}_UDPPorts $CONFPATH && ssh -q ${USER}@${TesterIP} sudo at now < ${LOCALSAVE}/Scripts/${BlockName}/Testers/${TesterIP}/${TesterIP}-${ListenerIP}-udp.sh &> /dev/null
                         done
             done
         fi

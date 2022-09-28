@@ -22,15 +22,11 @@ do
                     echo "until \$(ssh ${User}@${TesterIP} test -e ${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/${TesterIP}-${ListenerIP}.txt);do sleep 10; done ; scp  ${User}@${TesterIP}:${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/${TesterIP}-${ListenerIP}.txt $LOCALSAVE/Reports/${BlockName}/${TesterIP}/tcp/${TesterIP}-${ListenerIP}-tcp.txt"|at now
 
                 fi
-#                if ! [ -z $UDPPorts ] 
-#                then
-#                    mkdir -p ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/udp
-#                    echo "until ssh ${User}@${TesterIP} test -e ${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt
-#                        do
-#                            sleep 10
-#                        done
-#                    scp ${User}@${TesterIP}:${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt $LOCALSAVE/Reports/${BlockName}/${TesterIP}/udp/${TesterIP}-${ListenerIP}-udp.txt"|at now
-#                fi
+                if ! [ -z $UDPPorts ] 
+                then
+                    mkdir -p ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/udp
+                    echo "until \$(ssh ${User}@${TesterIP} test -e ${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt);do sleep 10; done ; scp  ${User}@${TesterIP}:${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt $LOCALSAVE/Reports/${BlockName}/${TesterIP}/udp/${TesterIP}-${ListenerIP}-udp.txt"|at now
+                fi
             done
         done
     fi

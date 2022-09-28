@@ -70,11 +70,8 @@ generate_listeners () {
                     if [ \$? -ne 0 ]
                     then
                         echo "nc -4kl ${1} \${Port}"|at now
-                        PID=\$(ps -eo command,pid|grep "nc -4kl ${1} \$Port"|tr ' ' '\n'|grep -v '^$'|tail -n 1)
-                        while [ -z \$PID ]
-                        do
-                            PID=\$(ps -eo command,pid|grep "nc -4kl ${1} \$Port"|tr ' ' '\n'|grep -v '^$'|tail -n 1)
-                        done
+                        PID=\$( pgrep -la nc|grep "${1} \${Port}"|cut -d' ' -f1)
+                        while [ -z \$PID ] ; do   PID=\$( pgrep -la nc|grep "${1} \${Port}"|cut -d' ' -f1) ; done
                         echo "kill -9 \$PID "|at now +${ListentDurationInMinutes} minutes
                     fi
                 done
@@ -83,47 +80,49 @@ generate_listeners () {
                 if [ \$? -ne 0 ]
                 then
                     echo "nc -4kl ${1} \${Ports}"|at now
-                    PID=\$(ps -eo command,pid|grep "nc -4kl ${1} \$Ports"|tr ' ' '\n'|grep -v '^$'|tail -n 1)
-                    while [ -z \$PID ]
-                    do
-                        PID=\$(ps -eo command,pid|grep "nc -4kl ${1} \$Ports"|tr ' ' '\n'|grep -v '^$'|tail -n 1)
-                    done
+                    PID=\$( pgrep -la nc|grep "${1} \${Ports}"|cut -d' ' -f1)
+                    while [ -z \$PID ] ; do   PID=\$( pgrep -la nc|grep "${1} \${Ports}"|cut -d' ' -f1) ; done
                     echo "kill -9 \$PID "|at now +${ListentDurationInMinutes} minutes
                 fi
             fi
         done
 EOF
-#            [ -z $UDPPorts ] || cat <<EOF > ${LOCALSAVE}/Scripts/${BlockName}/Listeners/${1}-udp.sh
-#FWStatus=\$(systemctl show -p ActiveState firewalld | sed 's/ActiveState=//g')
-#[ \$FWStatus = active ] && systemctl stop firewalld && echo 'systemctl start firewalld ' |at now +${ListentDurationInMinutes} minutes
-#rpm -qa |grep -q nmap-ncat && yum install -y -q nmap-ncat 
-#for Ports in \$(echo ${UDPPorts}|tr ',' ' ')
-#do
-#    ListenFor=$ListentDurationInSeconds  
-#    echo "\${Ports}"|grep -q '-'
-#    if [ \$? -eq 0 ] 
-#    then
-#        Start_Port=\$(echo \${Ports}|cut -d '-' -f1)
-#        End_Port=\$(echo \${Ports}|cut -d '-' -f2)
-#        for Port in \$(seq \${Start_Port} \${End_Port})
-#        do
-#            echo '' |nc -u -w 2 ${1} \$Port
-#            if [ \$? -ne 0 ]
-#            then
-#                SECONDS=0
-#                echo "while (( SECONDS < ListenFor )) ; do nc -4lu -i 0.001 ${1} \${Port} ; done "|at now
-#            fi
-#        done
-#    else
-#        echo ''|nc -u -w 2 ${1} \$Ports
-#        if [ \$? -ne 0 ]
-#        then
-#            SECONDS=0
-#            echo "while (( SECONDS < ListenFor )) ; do nc -4lu -i 0.001 ${1} \${Ports} ; done"|at now
-#        fi
-#    fi
-#done
-#EOF
+            [ -z $UDPPorts ] || cat <<EOF > ${LOCALSAVE}/Scripts/${BlockName}/Listeners/${1}-udp.sh
+            FWStatus=\$(systemctl show -p ActiveState firewalld | sed 's/ActiveState=//g')
+            [ \$FWStatus = active ] && systemctl stop firewalld && echo 'systemctl start firewalld ' |at now +${ListentDurationInMinutes} minutes
+            rpm -qa |grep -q nmap-ncat && yum install -y -q nmap-ncat 
+            for Ports in \$(echo ${UDPPorts}|tr ',' ' ')
+            do
+                echo "\${Ports}"|grep -q '-'
+                if [ \$? -eq 0 ] 
+                then
+                    Start_Port=\$(echo \${Ports}|cut -d '-' -f1)
+                    End_Port=\$(echo \${Ports}|cut -d '-' -f2)
+                    for Port in \$(seq \${Start_Port} \${End_Port})
+                    do
+                        nc -uz -w 2 ${1} \$Port
+                        if [ \$? -ne 0 ]
+                        then
+                                echo "python /tmp/UDP-Listener.py ${1} \${Port}"|at now
+                                unset PID
+                                PID=\$(pgrep -la python|grep "/tmp/UDP-Listener.py ${1} \${Port}"|cut -d' ' -f1)
+                                while [ -z \$PID ] ; do PID=\$(pgrep -la python|grep "/tmp/UDP-Listener.py ${1} \${Port}"|cut -d' ' -f1) ; done
+                                echo "kill -9 \$PID "|at now +${ListentDurationInMinutes} minutes
+                        fi
+                    done
+                else
+                    nc -uz -w 2 ${1} \$Ports
+                    if [ \$? -ne 0 ]
+                    then
+                        echo "python /tmp/UDP-Listener.py ${1} \${Ports}"|at now
+                        unset PID
+                        PID=\$(pgrep -la python|grep "/tmp/UDP-Listener.py ${1} \${Ports}"|cut -d' ' -f1)
+                        while [ -z \$PID ] ; do PID=\$(pgrep -la python|grep "/tmp/UDP-Listener.py ${1} \${Ports}"|cut -d' ' -f1) ; done
+                        echo "kill -9 \$PID "|at now +${ListentDurationInMinutes} minutes
+                    fi
+                fi
+            done
+EOF
 }
 for BlockName in $BlocksNames
 do
@@ -143,6 +142,7 @@ do
         # take the listener spaced ips and generate the scripts
         for ListenerIP in ${Expanded_ListenersIPs}
         do
+            ssh -q $User@${Listener} test -e /tmp/UDP-Listener.py || scp /tmp/UDP-Listener.py ${User}@${ListenerIP}:/tmp/  &>/dev/null 
             generate_listeners "${ListenerIP}"
         done
     fi

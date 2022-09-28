@@ -31,40 +31,39 @@ generate_testers () {
                 done
                 mv  /tmp/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/${TesterIP}-${ListenerIP}.txt \${HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/${TesterIP}-${ListenerIP}.txt
 EOF
-#            [ -z $UDPPorts ] || cat <<EOF > ${LOCALSAVE}/Scripts/${BlockName}/Listeners/${ListenerIP}-udp.sh
-#            #!/bin/bash
-#            mkdir -p \${PWD}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/
-#FWStatus=\$(systemctl show -p ActiveState firewalld | sed 's/ActiveState=//g')
-#[ \$FWStatus = active ] && systemctl stop firewalld && echo 'systemctl start firewalld ' |at now +${ListentDurationInMinutes} minutes
-#rpm -qa |grep -q nmap-ncat && yum install -y -q nmap-ncat 
-#for Ports in \$(echo ${UDPPorts}|tr ',' ' ')
-#do
-#    ListenFor=$ListentDurationInSeconds  
-#    echo "\${Ports}"|grep -q '-'
-#    if [ \$? -eq 0 ] 
-#    then
-#        Start_Port=\$(echo \${Ports}|cut -d '-' -f1)
-#        End_Port=\$(echo \${Ports}|cut -d '-' -f2)
-#        for Port in \$(seq \${Start_Port} \${End_Port})
-#        do
-#            echo '' |nc -u -w 2 ${ListenerIP} \$Port
-#            if [ \$? -ne 0 ]
-#            then
-#                SECONDS=0
-#                echo "while (( SECONDS < ListenFor )) ; do nc -4lu -i 0.001 ${ListenerIP} \${Port} ; done "|at now
-#            fi
-#        done
-#    else
-#        echo ''|nc -u -w 2 ${ListenerIP} \$Ports
-#        if [ \$? -ne 0 ]
-#        then
-#            SECONDS=0
-#            echo "while (( SECONDS < ListenFor )) ; do nc -4lu -i 0.001 ${ListenerIP} \${Ports} ; done"|at now
-#        fi
-#    fi
-#done
-#                touch Reports/udp/done
-#EOF
+            [ -z $UDPPorts ] || cat <<EOF > ${LOCALSAVE}/Scripts/${BlockName}/Testers/${TesterIP}/${TesterIP}-${ListenerIP}-udp.sh
+            #!/bin/bash
+            mkdir -p /tmp/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/
+            mkdir -p \${HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/
+            rpm -qa |grep -q nmap-ncat && yum install -y -q nmap-ncat 
+            for Ports in \$(echo ${UDPPorts}|tr ',' ' ')
+            do
+                echo "\${Ports}"|grep -q '-'
+                if [ \$? -eq 0 ] 
+                then
+                    Start_Port=\$(echo \${Ports}|cut -d '-' -f1)
+                    End_Port=\$(echo \${Ports}|cut -d '-' -f2)
+                    for retry in 1 2 3
+                    do
+                            nc -uz -w 2 ${ListenerIP} \${End_Port} &> /dev/null
+                            if [ \$? -eq 0 ]
+                            then        
+                                for Port in \$(seq \${Start_Port} \${End_Port})
+                                do
+                                    nc -vuz -w 2 ${ListenerIP} \${Port}   &>> /tmp/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt
+                                done
+                                break
+                            else
+                                sleep \$retry
+                            fi
+                    done
+                else
+                    nc -vuz -w 2 ${ListenerIP} \${Ports}   &>> /tmp/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt
+                    
+                fi
+            done
+            mv  /tmp/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt \${HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt
+EOF
 }
 for BlockName in $BlocksNames
 do
