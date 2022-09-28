@@ -4,6 +4,21 @@ LOCALSAVE="${HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}"
 CONFPATH="$LOCALSAVE/${ConfFileName}"
 mkdir -p $LOCALSAVE
 echo -n > $CONFPATH
+cat <<EOF > /tmp/UDP-Listener.py
+#! /usr/bin/python
+from socket import socket,AF_INET,SOCK_DGRAM,SO_REUSEADDR,SOL_SOCKET
+from time import sleep,ctime
+import sys
+if len(sys.argv)>2:
+    localIP = sys.argv[1]
+    localPort = int(sys.argv[2])
+bufSize = 1500
+sock = socket(family=AF_INET, type=SOCK_DGRAM)
+sock.setsockopt(SOL_SOCKET,SO_REUSEADDR, 1)
+sock.bind((localIP, localPort))
+while True:
+    message, ipport = sock.recvfrom(bufSize)
+EOF
 ConfFileContent=$(egrep -v '^$|^#' $1|tr -d ' '|sed 's/\[/EOB\n\[/g'|sed '1d'|sed -e '$a\EOB')
 BlocksNames=$(echo "${ConfFileContent}" |grep '\['|tr -d '['|tr -d ']') 
 #array/dicts are not flexible and bash prohibt nest substitutin so save will be file based
