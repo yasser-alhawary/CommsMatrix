@@ -3,7 +3,7 @@ generate_testers () {
                 #!/bin/bash
                 mkdir -p /tmp/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/
                 mkdir -p \${HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/
-                rpm -qa |grep -q nmap-ncat && yum install -y -q nmap-ncat 
+                rpm -qa |grep -q nmap-ncat || yum install -y -q nmap-ncat 
                 for Ports in \$(echo ${TCPPorts}|tr ',' ' ')
                 do
                     echo "\${Ports}"|grep -q '-'
@@ -11,15 +11,12 @@ generate_testers () {
                     then
                         Start_Port=\$(echo \${Ports}|cut -d '-' -f1)
                         End_Port=\$(echo \${Ports}|cut -d '-' -f2)
-                        for retry in 1 2 3
+                        for retry in \$(seq 1 ${ListentDurationInMinutes})
                         do
                             nc -z -w 2 ${ListenerIP} \${End_Port} &> /dev/null
                             if [ \$? -eq 0 ]
                             then        
-                                for port in \$(seq \${Start_Port} \${End_Port})
-                                do
-                                    nc -vz -w 2 ${ListenerIP} \${port}   &>> /tmp/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/${TesterIP}-${ListenerIP}.txt
-                                done
+                                for Port in \$(seq \${Start_Port} \${End_Port}) ; do nc -vz -w 2 ${ListenerIP} \${Port}   &>> /tmp/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/${TesterIP}-${ListenerIP}.txt ; done
                                 break
                             else
                                 sleep \$retry
@@ -35,7 +32,7 @@ EOF
             #!/bin/bash
             mkdir -p /tmp/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/
             mkdir -p \${HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/
-            rpm -qa |grep -q nmap-ncat && yum install -y -q nmap-ncat 
+            rpm -qa |grep -q nmap-ncat || yum install -y -q nmap-ncat 
             for Ports in \$(echo ${UDPPorts}|tr ',' ' ')
             do
                 echo "\${Ports}"|grep -q '-'
@@ -43,15 +40,12 @@ EOF
                 then
                     Start_Port=\$(echo \${Ports}|cut -d '-' -f1)
                     End_Port=\$(echo \${Ports}|cut -d '-' -f2)
-                    for retry in 1 2 3
-                    do
+                    for retry in \$(seq 1 $ListentDurationInMinutes)
+                    do    
                             nc -uz -w 2 ${ListenerIP} \${End_Port} &> /dev/null
                             if [ \$? -eq 0 ]
                             then        
-                                for Port in \$(seq \${Start_Port} \${End_Port})
-                                do
-                                    nc -vuz -w 2 ${ListenerIP} \${Port}   &>> /tmp/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt
-                                done
+                                for Port in \$(seq \${Start_Port} \${End_Port}) ; do nc -vuz -w 2 ${ListenerIP} \${Port}   &>> /tmp/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt ; done
                                 break
                             else
                                 sleep \$retry
@@ -59,7 +53,6 @@ EOF
                     done
                 else
                     nc -vuz -w 2 ${ListenerIP} \${Ports}   &>> /tmp/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt
-                    
                 fi
             done
             mv  /tmp/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt \${HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt
