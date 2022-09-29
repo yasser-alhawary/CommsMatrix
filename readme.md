@@ -90,12 +90,14 @@ The Configuration File:
                             ListenersIPs:    the remote listenerip , uni mode only
     Notes:
         - block name is one string [a-zA-Z]
-        - hashed and empty lines in Configuration File ignored
-        - spaces not allowd in Configuration File Name and Blocks Names
+        - hashed and empty lines in Configuration File ignored 
+        - any attribute does not match documented one ignored
+        - configuration are validated for consistency and will exit if it is not consistent
+        - spaces not allowd in Configuration File Name
         - IPs/TesterIPs/ListenerIPs:
-                - hole the value within the {}. 
                 - the targeted ips can be mixed ranges/indivudal ips space or newline separated
                 - the ip values are validated
+                - range can be x.x.x.0-x.x.x.255 (right most)
                 - IPS attribute is not allowd in uni mode
                 - TesterIPs/ListenersIPS attribute are not allowd in bi mode
     example: |
