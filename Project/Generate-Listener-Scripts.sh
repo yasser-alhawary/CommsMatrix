@@ -90,7 +90,7 @@ EOF
             [ -z $UDPPorts ] || cat <<EOF > ${LOCALSAVE}/Scripts/${BlockName}/Listeners/${1}-udp.sh
             FWStatus=\$(systemctl show -p ActiveState firewalld | sed 's/ActiveState=//g')
             [ \$FWStatus = active ] && systemctl stop firewalld && echo 'systemctl start firewalld ' |at now +${ListentDurationInMinutes} minutes
-            rpm -qa |grep -q nmap-ncat && yum install -y -q nmap-ncat 
+            rpm -qa |grep -q nmap-ncat || yum install -y -q nmap-ncat 
             for Ports in \$(echo ${UDPPorts}|tr ',' ' ')
             do
                 echo "\${Ports}"|grep -q '-'
