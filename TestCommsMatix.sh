@@ -9,11 +9,7 @@ CONFPATH="${LOCALSAVE}/${ConfFileName}"
 mkdir -p ${LOCALSAVE}
 echo -n > ${CONFPATH}
 SSH_PORT=22
-[ $(uname -s) != Linux ] && echo "script does not support emulator,some expressions/commands will break" && exit 1
-####files/functions to be called later#####
-#1-Create the UDP Listener python script to be send to remtote listeners if not exist
-cat <<EOF > /tmp/UDP-Listener.py
-#! /usr/bin/python
+Listener_UDPScript="#! /usr/bin/python
 from socket import socket,AF_INET,SOCK_DGRAM,SO_REUSEADDR,SOL_SOCKET
 from time import sleep,ctime
 import sys
@@ -25,9 +21,10 @@ sock = socket(family=AF_INET, type=SOCK_DGRAM)
 sock.setsockopt(SOL_SOCKET,SO_REUSEADDR, 1)
 sock.bind((localIP, localPort))
 while True:
-    message, ipport = sock.recvfrom(bufSize)
-EOF
-#2-Validation functions
+    message, ipport = sock.recvfrom(bufSize)"
+[ $(uname -s) != Linux ] && echo "script does not support emulator,some expressions/commands will break" && exit 1
+####functions to be called later#####
+#1-Validation functions
 Validate_Ports() {
 	for Ports in $(echo $1|tr ',' ' ')
 		do
@@ -141,7 +138,7 @@ Validate_Access(){
         echo "sudo access with no password is not satisified on host ${1} user ${User} " && exit 3
     fi
 }
-#3-Expand ips function and also exclude ips that are unreachable or is not root or sudoer nopasswd on it , logged
+#2-Expand ips function and also exclude ips that are unreachable or is not root or sudoer nopasswd on it , logged
 expand_ips() {   
     unset Expanded_IPs
     for IPRange in $(echo $1|cut -d ':' -f2 |tr ',' ' ')
@@ -171,7 +168,7 @@ expand_ips() {
     IPName=$(echo $1|cut -d ':' -f1)
     [ ${IPName} = ListenersIPs ] && Expanded_ListenersIPs=${Expanded_IPs} || Expanded_TestersIPs=${Expanded_IPs}
 }
-#4-Generate the listeners script function
+#3-Generate the listeners script function
 generate_listeners () {
         [ -z ${TCPPorts} ] || cat <<EOF > ${LOCALSAVE}/Scripts/${BlockName}/Listeners/${ListenerIP}-tcp.sh
         #!/bin/bash
@@ -215,6 +212,7 @@ EOF
             FWStatus=\$(systemctl show -p ActiveState firewalld | sed 's/ActiveState=//g')
             [ \${FWStatus} = active ] && systemctl stop firewalld && echo 'systemctl start firewalld ' |at now +${ListentDurationInMinutes} minutes
             rpm -qa |grep -q nmap-ncat || yum install -y -q nmap-ncat 
+            [ -e /tmp/UDP-Listener.py ] || echo "${Listener_UDPScript}" >> /tmp/UDP-Listener.py
             for Ports in \$(echo ${UDPPorts}|tr ',' ' ')
             do
                 echo "\${Ports}"|grep -q '-'
@@ -545,7 +543,6 @@ do
         # take the listener spaced ips and generate the scripts
         for ListenerIP in ${Expanded_ListenersIPs}
         do
-            ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${Listener} test -e /tmp/UDP-Listener.py || scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no /tmp/UDP-Listener.py ${User}@${ListenerIP}:/tmp/  &>/dev/null 
             generate_listeners
             grep -q ${BlockName}_TCPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${ListenerIP} ${ATCMD} < ${LOCALSAVE}/Scripts/${BlockName}/Listeners/${ListenerIP}-tcp.sh &> /dev/null
             grep -q ${BlockName}_UDPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${ListenerIP} ${ATCMD} < ${LOCALSAVE}/Scripts/${BlockName}/Listeners/${ListenerIP}-udp.sh &> /dev/null
@@ -558,12 +555,12 @@ do
                 if ! [ -z ${TCPPorts} ] 
                 then
                     mkdir -p ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/tcp
-                    echo "until \$(ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP} test -e ${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/${TesterIP}-${ListenerIP}.txt);do sleep $(expr ${ListentDurationInMinutes} \* 60 ); done ; scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/${TesterIP}-${ListenerIP}.txt ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/tcp/${TesterIP}-${ListenerIP}-tcp.txt"|at now &> /dev/null
+                    echo "until \$(ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP} test -e ${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/${TesterIP}-${ListenerIP}.txt);do sleep $(expr ${ListentDurationInMinutes} \* 6 ); done ; scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/${TesterIP}-${ListenerIP}.txt ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/tcp/${TesterIP}-${ListenerIP}-tcp.txt"|at now &> /dev/null
                 fi
                 if ! [ -z ${UDPPorts} ] 
                 then
                     mkdir -p ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/udp
-                    echo "until \$(ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP} test -e ${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt);do sleep $(expr ${ListentDurationInMinutes} \* 60 ); done ; scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/udp/${TesterIP}-${ListenerIP}-udp.txt"|at now &> /dev/null
+                    echo "until \$(ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP} test -e ${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt);do sleep $(expr ${ListentDurationInMinutes} \* 6 ); done ; scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/udp/${TesterIP}-${ListenerIP}-udp.txt"|at now &> /dev/null
                 fi
             done
         done

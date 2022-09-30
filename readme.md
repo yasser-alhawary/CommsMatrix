@@ -100,6 +100,11 @@ The Configuration File:
                 - range can be x.x.x.0-x.x.x.255 (right most)
                 - IPS attribute is not allowd in uni mode
                 - TesterIPs/ListenersIPS attribute are not allowd in bi mode
+        - listenduration used in :
+            - basically for how long  tcp/udp kept open ports will
+            - for how long firewall will be stopped
+            - for how long wait will be applied to test the last port on the port seq
+            - the grab result interval duration/10
     example: |
         [Default]
         #default Mode
