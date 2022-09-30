@@ -8,6 +8,8 @@ LOCALSAVE="${HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}"
 CONFPATH="${LOCALSAVE}/${ConfFileName}"
 mkdir -p ${LOCALSAVE}
 echo -n > ${CONFPATH}
+SSH_PORT=22
+[ $(uname -s) != Linux ] && echo "script does not support emulator,some expressions/commands will break" && exit 1
 ####files/functions to be called later#####
 #1-Create the UDP Listener python script to be send to remtote listeners if not exist
 cat <<EOF > /tmp/UDP-Listener.py
@@ -30,7 +32,8 @@ Validate_Ports() {
 	for Ports in $(echo $1|tr ',' ' ')
 		do
 			echo ${Ports}|grep -q '-'
-			if [ $? -eq 0 ]
+            exit_status=$?
+			if [ ${exit_status} -eq 0 ]
 			then
 				Start_Port=$(echo ${Ports}|cut -d '-' -f1 )
 				End_Port=$(echo ${Ports}|cut -d '-' -f2 )
@@ -68,7 +71,8 @@ Validate_IPS () {
 	for IPs in $(echo $1|tr ',' ' ')
 	do
 		echo ${IPs}|grep -q '-'
-		if [ $? -eq 0 ]
+        exit_status=$?
+		if [ ${exit_status} -eq 0 ]
 		then
             Start_IP=$(echo ${IPs}|cut -d '-' -f1 )         &>/dev/null
             End_IP=$(echo ${IPs}|cut -d '-' -f2 )           &>/dev/null
@@ -119,13 +123,32 @@ Validate_ListentDurationInMinutes () {
 				exit 3
 			fi
 }
-#3-Expand ips function
+Validate_Access(){
+    nc -w 2 -z ${1} ${SSH_PORT} 
+    exit_status=$?
+    [ ${exit_status} -ne 0 ]  &&  echo "host ${1} is not ssh accessible , port ${SSH_PORT} is down" && exit 3
+
+    ssh -q -p ${SSH_PORT}  -o PasswordAuthentication=no -o StrictHostKeyChecking=no ${User}@${1} sudo -vn &> /dev/null
+    exit_status=$?
+    if [ ${exit_status} -eq 1 ]
+    then
+        echo "${User} on ${1} is not a sudoer or sudoer password required " && exit 3
+    elif [ ${exit_status} -eq 255 ]
+    then
+        echo "${User} on ${1} Does not Authorized the public key for ssh login" && exit 3
+    elif [ ${exit_status} -ne 0 ]
+    then
+        echo "sudo access with no password is not satisified on host ${1} user ${User} " && exit 3
+    fi
+}
+#3-Expand ips function and also exclude ips that are unreachable or is not root or sudoer nopasswd on it , logged
 expand_ips() {   
     unset Expanded_IPs
     for IPRange in $(echo $1|cut -d ':' -f2 |tr ',' ' ')
     do
         echo ${IPRange}|grep -q '-'
-        if [ $? -eq 0 ]
+        exit_status=$?
+        if [ ${exit_status} -eq 0 ]
         then
                 Start_IP=$(echo ${IPRange}|cut -d '-' -f1 )
                 End_IP=$(echo ${IPRange}|cut -d '-' -f2 )
@@ -158,14 +181,16 @@ generate_listeners () {
         for Ports in \$(echo ${TCPPorts}|tr ',' ' ')
         do
             echo "\${Ports}"|grep -q '-'
-            if [ \$? -eq 0 ] 
+            exit_status=\$?
+            if [ \${exit_status} -eq 0 ] 
             then
                 Start_Port=\$(echo \${Ports}|cut -d '-' -f1)
                 End_Port=\$(echo \${Ports}|cut -d '-' -f2)
                 for Port in \$(seq \${Start_Port} \${End_Port})
                 do
                     nc -w 2 -z ${ListenerIP} \${Port}
-                    if [ \$? -ne 0 ]
+                    exit_status=\$?
+                    if [ \${exit_status} -ne 0 ]
                     then
                         echo "nc -4kl ${ListenerIP} \${Port}"|at now
                         PID=\$( pgrep -la nc|grep "${ListenerIP} \${Port}"|cut -d' ' -f1)
@@ -175,7 +200,8 @@ generate_listeners () {
                 done
             else
                 nc -w 2 -z ${ListenerIP} \${Ports}
-                if [ \$? -ne 0 ]
+                exit_status=\$?
+                if [ \${exit_status} -ne 0 ]
                 then
                     echo "nc -4kl ${ListenerIP} \${Ports}"|at now
                     PID=\$( pgrep -la nc|grep "${ListenerIP} \${Ports}"|cut -d' ' -f1)
@@ -192,14 +218,16 @@ EOF
             for Ports in \$(echo ${UDPPorts}|tr ',' ' ')
             do
                 echo "\${Ports}"|grep -q '-'
-                if [ \$? -eq 0 ] 
+                exit_status=\$?
+                if [ \${exit_status} -eq 0 ] 
                 then
                     Start_Port=\$(echo \${Ports}|cut -d '-' -f1)
                     End_Port=\$(echo \${Ports}|cut -d '-' -f2)
                     for Port in \$(seq \${Start_Port} \${End_Port})
                     do
                         nc -uz -w 2 ${ListenerIP} \${Port}
-                        if [ \$? -ne 0 ]
+                        exit_status=\$?
+                        if [ \${exit_status} -ne 0 ]
                         then
                                 echo "python /tmp/UDP-Listener.py ${ListenerIP} \${Port}"|at now
                                 unset PID
@@ -210,7 +238,8 @@ EOF
                     done
                 else
                     nc -uz -w 2 ${ListenerIP} \${Ports}
-                    if [ \$? -ne 0 ]
+                    exit_status=\$?
+                    if [ \${exit_status} -ne 0 ]
                     then
                         echo "python /tmp/UDP-Listener.py ${ListenerIP} \${Ports}"|at now
                         unset PID
@@ -232,14 +261,16 @@ generate_testers () {
                 for Ports in \$(echo ${TCPPorts}|tr ',' ' ')
                 do
                     echo "\${Ports}"|grep -q '-'
-                    if [ \$? -eq 0 ] 
+                    exit_status=\$?
+                    if [ \${exit_status} -eq 0 ] 
                     then
                         Start_Port=\$(echo \${Ports}|cut -d '-' -f1)
                         End_Port=\$(echo \${Ports}|cut -d '-' -f2)
                         for retry in \$(seq 1 ${ListentDurationInMinutes})
                         do
                             nc -z -w 2 ${ListenerIP} \${End_Port} &> /dev/null
-                            if [ \$? -eq 0 ]
+                            exit_status=\$?
+                            if [ \${exit_status} -eq 0 ]
                             then        
                                 for Port in \$(seq \${Start_Port} \${End_Port}) ; do nc -vz -w 2 ${ListenerIP} \${Port}   &>> /tmp/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/${TesterIP}-${ListenerIP}.txt ; done
                                 break
@@ -261,14 +292,16 @@ EOF
             for Ports in \$(echo ${UDPPorts}|tr ',' ' ')
             do
                 echo "\${Ports}"|grep -q '-'
-                if [ \$? -eq 0 ] 
+                exit_status=\$?
+                if [ \${exit_status} -eq 0 ] 
                 then
                     Start_Port=\$(echo \${Ports}|cut -d '-' -f1)
                     End_Port=\$(echo \${Ports}|cut -d '-' -f2)
                     for retry in \$(seq 1 ${ListentDurationInMinutes})
                     do    
                             nc -uz -w 2 ${ListenerIP} \${End_Port} &> /dev/null
-                            if [ \$? -eq 0 ]
+                            exit_status=\$?
+                            if [ \${exit_status} -eq 0 ]
                             then        
                                 for Port in \$(seq \${Start_Port} \${End_Port}) ; do nc -vuz -w 2 ${ListenerIP} \${Port}   &>> /tmp/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt ; done
                                 break
@@ -380,11 +413,13 @@ do
 	then 
 		for Attribute in User Mode ListentDurationInMinutes
 		do
-			grep -q ${BlockName}_${Attribute} ${CONFPATH} 
-			if [ $? -ne 0 ]
+			grep -q ${BlockName}_${Attribute} ${CONFPATH}
+            exit_status=$? 
+			if [ ${exit_status} -ne 0 ]
 			then 
 				grep -q Default_${Attribute} ${CONFPATH}
-				if [ $? -eq 0 ]
+                exit_status=$?
+				if [ ${exit_status} -eq 0 ]
 				then
 					echo "${BlockName}_${Attribute}:$(grep Default_${Attribute} ${CONFPATH}| cut -d':' -f2)" >> ${CONFPATH}
                 else
@@ -400,12 +435,14 @@ do
 			bi)
 				egrep -q "${BlockName}_TestersIPs|${BlockName}_ListenersIPs" ${CONFPATH} &&	echo "Block ${BlockName} has Mode ${Mode} can not have either TestersIPs or ListenersIPs in the conf file"  && exit 2
 				grep -q "${BlockName}_IPs" ${CONFPATH}
-				if [ $? -ne 0 ]
+                exit_status=$?
+				if [ ${exit_status} -ne 0 ]
 				then
 					echo "Block ${BlockName} is in ${Mode} Mode with no IPs Attribute specified" &&	exit 2
 				fi
 				egrep -q  "${BlockName}_TCPPorts|${BlockName}_UDPPorts" ${CONFPATH}
-				if [ $? -ne -0 ]
+                exit_status=$?
+				if [ ${exit_status} -ne -0 ]
 				then
 					echo "${BlockName} has no tcp or udp ports to test" &&	exit 2
 				fi
@@ -413,17 +450,20 @@ do
 			uni)
 				grep -q "${BlockName}_IPs" ${CONFPATH} &&	echo Block ${BlockName} has Mode ${Mode} can not have IPs Attributes in the conf file && exit 2
 				grep -q "${BlockName}_TestersIPs" ${CONFPATH} 
-				if [ $? -ne 0 ]
+                exit_status=$?
+				if [ ${exit_status} -ne 0 ]
 				then 
 					echo "Block ${BlockName} is in ${Mode} Mode with no TestersIps Attribute specified" && exit 2
 				fi
 				grep -q "${BlockName}_ListenersIPs" ${CONFPATH}
-				if [ $? -ne 0 ]
+                exit_status=$?
+				if [ ${exit_status} -ne 0 ]
 				then 
 					echo "Block ${BlockName} is in ${Mode} Mode with no ListenersIPs Attribute specified" && exit 2
 				fi
 				egrep -q  "${BlockName}_TCPPorts|${BlockName}_UDPPorts" ${CONFPATH}
-				if [ $? -ne 0 ]
+                exit_status=$?
+				if [ ${exit_status} -ne 0 ]
 				then 
 					echo "${BlockName} has no tcp or udp ports to test" &&	exit 2
 				fi
@@ -440,14 +480,42 @@ done
 #ListentDurationInMinutes  value must be an integer
 #ips match ips regex
 #ports intger from 0 - 65536
+#validate remote ips ssh access and sudo no passwd privilege
 for BlockName in ${BlocksNames}
 do
-	    grep -q ${BlockName}_TCPPorts ${CONFPATH}	 	&&  TCPPorts=$( grep ${BlockName}_TCPPorts ${CONFPATH}|cut -d ':' -f2 ) 		&& Validate_Ports ${TCPPorts}
-        grep -q ${BlockName}_UDPPorts ${CONFPATH} 		&&  UDPPorts=$( grep ${BlockName}_UDPPorts ${CONFPATH}|cut -d ':' -f2 ) 		&& Validate_Ports ${UDPPorts}
-		grep -q ${BlockName}_IPs ${CONFPATH} 			&&  IPs=$(grep ${BlockName}_IPs ${CONFPATH}|cut -d ':' -f2) 					&& Validate_IPS ${IPs}
-		grep -q ${BlockName}_TestersIPs ${CONFPATH} 	&&  TestersIPs=$(grep ${BlockName}_TestersIPs${CONFPATH}|cut -d ':' -f2)		&& Validate_IPS ${TestersIPs}
-        grep -q ${BlockName}_ListenersIPs ${CONFPATH} 	&&  ListenersIPs=$(grep ${BlockName}_ListenersIPs ${CONFPATH}|cut -d ':' -f2)	&& Validate_IPS ${ListenersIPs}
-		grep -q ${BlockName}_ListentDurationInMinutes ${CONFPATH} 	&& 	ListentDurationInMinutes=$(grep ${BlockName}_ListentDurationInMinutes ${CONFPATH}|cut -d ':' -f2) && Validate_ListentDurationInMinutes ${ListentDurationInMinutes}
+    grep -q ${BlockName}_TCPPorts ${CONFPATH}	 	&&  TCPPorts=$( grep ${BlockName}_TCPPorts ${CONFPATH}|cut -d ':' -f2 ) 		&& Validate_Ports ${TCPPorts}
+    grep -q ${BlockName}_UDPPorts ${CONFPATH} 		&&  UDPPorts=$( grep ${BlockName}_UDPPorts ${CONFPATH}|cut -d ':' -f2 ) 		&& Validate_Ports ${UDPPorts}
+    grep -q ${BlockName}_IPs ${CONFPATH} 			&&  IPs=$(grep ${BlockName}_IPs ${CONFPATH}|cut -d ':' -f2) 					&& Validate_IPS ${IPs}
+    grep -q ${BlockName}_TestersIPs ${CONFPATH} 	&&  TestersIPs=$(grep ${BlockName}_TestersIPs${CONFPATH}|cut -d ':' -f2)		&& Validate_IPS ${TestersIPs}
+    grep -q ${BlockName}_ListenersIPs ${CONFPATH} 	&&  ListenersIPs=$(grep ${BlockName}_ListenersIPs ${CONFPATH}|cut -d ':' -f2)	&& Validate_IPS ${ListenersIPs}
+    grep -q ${BlockName}_ListentDurationInMinutes ${CONFPATH} 	&& 	ListentDurationInMinutes=$(grep ${BlockName}_ListentDurationInMinutes ${CONFPATH}|cut -d ':' -f2) && Validate_ListentDurationInMinutes ${ListentDurationInMinutes}
+    if [ ${BlockName} != Default ]
+    then 
+        unset User  Mode IPs TestersIPs ListenersIPs Expanded_TestersIPs Expanded_ListenersIPs
+        User=$(grep ${BlockName}_User ${CONFPATH}|cut -d':' -f2)
+        Mode=$(grep ${BlockName}_Mode ${CONFPATH}|cut -d':' -f2)
+        [ ${Mode} = bi ] && ListenersIPs=$(grep ${BlockName}_IPs ${CONFPATH}|cut -d':' -f2) || ListenersIPs=$(grep ${BlockName}_ListenersIPs ${CONFPATH}|cut -d':' -f2)
+        [ ${Mode} = bi ] && TestersIPs=$(grep ${BlockName}_IPs ${CONFPATH}|cut -d':' -f2) || TestersIPs=$(grep ${BlockName}_TestersIPs ${CONFPATH}|cut -d':' -f2)
+        if [ ${Mode} = uni ]
+        then
+            expand_ips "ListenersIPs:${ListenersIPs}"
+            expand_ips "TestersIPs:${TestersIPs}"
+            for ListenerIP in ${Expanded_ListenersIPs}
+            do 
+                Validate_Access ${ListenerIP}
+            done
+            for TesterIP in ${Expanded_TestersIPs}
+            do 
+                Validate_Access ${TesterIP}
+            done
+        else
+            expand_ips "ListenersIPs:${ListenersIPs}"
+            for ListenerIP in ${Expanded_ListenersIPs}
+            do
+                Validate_Access ${ListenerIP}
+            done
+        fi
+    fi
 done
 #create listeners/testers scripts and execute them remotly and create a local task to check if any report finished every 10 minutes and aggregate them
 for BlockName in ${BlocksNames}
@@ -465,11 +533,11 @@ do
         [ ${Mode} = bi ] && TestersIPs=$(grep ${BlockName}_IPs ${CONFPATH}|cut -d':' -f2) || TestersIPs=$(grep ${BlockName}_TestersIPs ${CONFPATH}|cut -d':' -f2)
         if [ ${User} = root ]
         then 
-        REMOTE_HOME=/${User}
-        ATCMD="at now"
+            REMOTE_HOME=/${User}
+            ATCMD="at now"
         else
-        REMOTE_HOME=/home/${User}
-        ATCMD="sudo at now"
+            REMOTE_HOME=/home/${User}
+            ATCMD="sudo at now"
         fi
         #convert the input to spaced individual ips 
         expand_ips "ListenersIPs:${ListenersIPs}"
@@ -477,25 +545,25 @@ do
         # take the listener spaced ips and generate the scripts
         for ListenerIP in ${Expanded_ListenersIPs}
         do
-            ssh -q ${User}@${Listener} test -e /tmp/UDP-Listener.py || scp /tmp/UDP-Listener.py ${User}@${ListenerIP}:/tmp/  &>/dev/null 
+            ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${Listener} test -e /tmp/UDP-Listener.py || scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no /tmp/UDP-Listener.py ${User}@${ListenerIP}:/tmp/  &>/dev/null 
             generate_listeners
-            grep -q ${BlockName}_TCPPorts ${CONFPATH} && ssh -q ${USER}@${ListenerIP} ${ATCMD} < ${LOCALSAVE}/Scripts/${BlockName}/Listeners/${ListenerIP}-tcp.sh &> /dev/null
-            grep -q ${BlockName}_UDPPorts ${CONFPATH} && ssh -q ${USER}@${ListenerIP} ${ATCMD} < ${LOCALSAVE}/Scripts/${BlockName}/Listeners/${ListenerIP}-udp.sh &> /dev/null
+            grep -q ${BlockName}_TCPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${ListenerIP} ${ATCMD} < ${LOCALSAVE}/Scripts/${BlockName}/Listeners/${ListenerIP}-tcp.sh &> /dev/null
+            grep -q ${BlockName}_UDPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${ListenerIP} ${ATCMD} < ${LOCALSAVE}/Scripts/${BlockName}/Listeners/${ListenerIP}-udp.sh &> /dev/null
             for TesterIP  in ${Expanded_TestersIPs}
             do
                 mkdir -p ${LOCALSAVE}/Scripts/${BlockName}/Testers/${TesterIP}/
                 generate_testers
-                grep -q ${BlockName}_TCPPorts ${CONFPATH} && ssh -q ${USER}@${TesterIP}  ${ATCMD} < ${LOCALSAVE}/Scripts/${BlockName}/Testers/${TesterIP}/${TesterIP}-${ListenerIP}-tcp.sh &> /dev/null
-                grep -q ${BlockName}_UDPPorts ${CONFPATH} && ssh -q ${USER}@${TesterIP}  ${ATCMD} < ${LOCALSAVE}/Scripts/${BlockName}/Testers/${TesterIP}/${TesterIP}-${ListenerIP}-udp.sh &> /dev/null
+                grep -q ${BlockName}_TCPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD} < ${LOCALSAVE}/Scripts/${BlockName}/Testers/${TesterIP}/${TesterIP}-${ListenerIP}-tcp.sh &> /dev/null
+                grep -q ${BlockName}_UDPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD} < ${LOCALSAVE}/Scripts/${BlockName}/Testers/${TesterIP}/${TesterIP}-${ListenerIP}-udp.sh &> /dev/null
                 if ! [ -z ${TCPPorts} ] 
                 then
                     mkdir -p ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/tcp
-                    echo "until \$(ssh ${User}@${TesterIP} test -e ${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/${TesterIP}-${ListenerIP}.txt);do sleep 600; done ; scp  ${User}@${TesterIP}:${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/${TesterIP}-${ListenerIP}.txt ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/tcp/${TesterIP}-${ListenerIP}-tcp.txt"|at now &> /dev/null
+                    echo "until \$(ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP} test -e ${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/${TesterIP}-${ListenerIP}.txt);do sleep $(expr ${ListentDurationInMinutes} \* 60 ); done ; scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/${TesterIP}-${ListenerIP}.txt ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/tcp/${TesterIP}-${ListenerIP}-tcp.txt"|at now &> /dev/null
                 fi
                 if ! [ -z ${UDPPorts} ] 
                 then
                     mkdir -p ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/udp
-                    echo "until \$(ssh ${User}@${TesterIP} test -e ${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt);do sleep 600; done ; scp  ${User}@${TesterIP}:${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/udp/${TesterIP}-${ListenerIP}-udp.txt"|at now &> /dev/null
+                    echo "until \$(ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP} test -e ${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt);do sleep $(expr ${ListentDurationInMinutes} \* 60 ); done ; scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/udp/${TesterIP}-${ListenerIP}-udp.txt"|at now &> /dev/null
                 fi
             done
         done
