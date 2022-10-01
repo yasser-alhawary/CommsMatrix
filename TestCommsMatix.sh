@@ -9,6 +9,7 @@ CONFPATH="${LOCALSAVE}/${ConfFileName}"
 mkdir -p ${LOCALSAVE}
 echo -n > ${CONFPATH}
 SSH_PORT=22
+[ $(uname -s) != "Linux" ] && echo "script does not support emulator,some expressions/commands will break" && exit 1
 Listener_UDPScript="#! /usr/bin/python
 from socket import socket,AF_INET,SOCK_DGRAM,SO_REUSEADDR,SOL_SOCKET
 from time import sleep,ctime
@@ -22,7 +23,6 @@ sock.setsockopt(SOL_SOCKET,SO_REUSEADDR, 1)
 sock.bind((localIP, localPort))
 while True:
     message, ipport = sock.recvfrom(bufSize)"
-[ $(uname -s) != Linux ] && echo "script does not support emulator,some expressions/commands will break" && exit 1
 ####functions to be called later#####
 #1-Validation functions
 Validate_Ports() {
@@ -253,8 +253,8 @@ EOF
 generate_testers () {
                 [ -z ${TCPPorts} ] || cat <<EOF > ${LOCALSAVE}/Scripts/${BlockName}/Testers/${TesterIP}/${TesterIP}-${ListenerIP}-tcp.sh
                 #!/bin/bash
-                mkdir -p /tmp/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/
                 mkdir -p \${HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/
+                touch \${HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/ActualDoneList
                 rpm -qa |grep -q nmap-ncat || yum install -y -q nmap-ncat 
                 for Ports in \$(echo ${TCPPorts}|tr ',' ' ')
                 do
@@ -270,22 +270,22 @@ generate_testers () {
                             exit_status=\$?
                             if [ \${exit_status} -eq 0 ]
                             then        
-                                for Port in \$(seq \${Start_Port} \${End_Port}) ; do nc -vz -w 2 ${ListenerIP} \${Port}   &>> /tmp/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/${TesterIP}-${ListenerIP}.txt ; done
+                                for Port in \$(seq \${Start_Port} \${End_Port}) ; do nc -vz -w 2 ${ListenerIP} \${Port}   &>> \${HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/${TesterIP}-${ListenerIP}.txt ; done
                                 break
                             else
                                 sleep \${retry}
                             fi
                         done
                     else
-                        nc -vz -w 2 ${ListenerIP} \${Ports}   &>> /tmp/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/${TesterIP}-${ListenerIP}.txt
+                        nc -vz -w 2 ${ListenerIP} \${Ports}   &>> \${HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/${TesterIP}-${ListenerIP}.txt
                     fi
                 done
-                mv  /tmp/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/${TesterIP}-${ListenerIP}.txt \${HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/${TesterIP}-${ListenerIP}.txt
+                echo  "${TesterIP}-${ListenerIP}-tcp" >> \${HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/ActualDoneList
 EOF
             [ -z ${UDPPorts} ] || cat <<EOF > ${LOCALSAVE}/Scripts/${BlockName}/Testers/${TesterIP}/${TesterIP}-${ListenerIP}-udp.sh
             #!/bin/bash
-            mkdir -p /tmp/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/
             mkdir -p \${HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/
+            touch \${HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/ActualDoneList
             rpm -qa |grep -q nmap-ncat || yum install -y -q nmap-ncat 
             for Ports in \$(echo ${UDPPorts}|tr ',' ' ')
             do
@@ -301,17 +301,30 @@ EOF
                             exit_status=\$?
                             if [ \${exit_status} -eq 0 ]
                             then        
-                                for Port in \$(seq \${Start_Port} \${End_Port}) ; do nc -vuz -w 2 ${ListenerIP} \${Port}   &>> /tmp/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt ; done
+                                for Port in \$(seq \${Start_Port} \${End_Port}) ; do nc -vuz -w 2 ${ListenerIP} \${Port}   &>> \${HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt ; done
                                 break
                             else
                                 sleep \$retry
                             fi
                     done
                 else
-                    nc -vuz -w 2 ${ListenerIP} \${Ports}   &>> /tmp/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt
+                    nc -vuz -w 2 ${ListenerIP} \${Ports}   &>> \${HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt
                 fi
             done
-            mv  /tmp/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt \${HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt
+            echo  "${TesterIP}-${ListenerIP}-udp" >> \${HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/ActualDoneList
+EOF
+}
+Generate_Collect_Reports () {
+cat <<EOF > /tmp/${ConfFileName}-${ExecutionDate}-${BlockName}-${TesterIP}-collect-reports.sh
+until [ "\$(sort -n ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/ExpectedDoneList)" = "\$(sort -n ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/ActualDoneList)" ]
+do
+    sleep $(expr ${ListentDurationInMinutes} \* 6 ) 
+    scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:~/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/ActualDoneList ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/
+    echo -e "$BlockName $TesterIP \$(sort -n ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/ExpectedDoneList) ===== \$(sort -n ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/ActualDoneList)" >> /root/debug 
+done
+echo exit the until >> /root/debug
+scp -rP ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:~/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/{tcp,udp} ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/
+rm -f ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/{ActualDoneList,ExpectedDoneList}
 EOF
 }
 ###########Start###########
@@ -529,14 +542,7 @@ do
         Mode=$(grep ${BlockName}_Mode ${CONFPATH}|cut -d':' -f2)
         [ ${Mode} = bi ] && ListenersIPs=$(grep ${BlockName}_IPs ${CONFPATH}|cut -d':' -f2) || ListenersIPs=$(grep ${BlockName}_ListenersIPs ${CONFPATH}|cut -d':' -f2)
         [ ${Mode} = bi ] && TestersIPs=$(grep ${BlockName}_IPs ${CONFPATH}|cut -d':' -f2) || TestersIPs=$(grep ${BlockName}_TestersIPs ${CONFPATH}|cut -d':' -f2)
-        if [ ${User} = root ]
-        then 
-            REMOTE_HOME=/${User}
-            ATCMD="at now"
-        else
-            REMOTE_HOME=/home/${User}
-            ATCMD="sudo at now"
-        fi
+        [ ${User} = root ] &&   ATCMD="at now" ||   ATCMD="sudo at now"
         #convert the input to spaced individual ips 
         expand_ips "ListenersIPs:${ListenersIPs}"
         expand_ips "TestersIPs:${TestersIPs}"
@@ -555,14 +561,33 @@ do
                 if ! [ -z ${TCPPorts} ] 
                 then
                     mkdir -p ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/tcp
-                    echo "until \$(ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP} test -e ${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/${TesterIP}-${ListenerIP}.txt);do sleep $(expr ${ListentDurationInMinutes} \* 6 ); done ; scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/tcp/${TesterIP}-${ListenerIP}.txt ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/tcp/${TesterIP}-${ListenerIP}-tcp.txt"|at now &> /dev/null
+                    echo  "${TesterIP}-${ListenerIP}-tcp" >> ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/ExpectedDoneList
                 fi
                 if ! [ -z ${UDPPorts} ] 
                 then
                     mkdir -p ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/udp
-                    echo "until \$(ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP} test -e ${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt);do sleep $(expr ${ListentDurationInMinutes} \* 6 ); done ; scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTE_HOME}/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/udp/${TesterIP}-${ListenerIP}.txt ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/udp/${TesterIP}-${ListenerIP}-udp.txt"|at now &> /dev/null
+                    echo  "${TesterIP}-${ListenerIP}-udp" >> ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/ExpectedDoneList
                 fi
             done
+        done
+    fi
+done         
+for BlockName in ${BlocksNames}
+do
+    if [ ${BlockName} != Default ]
+    then             
+        User=$(grep ${BlockName}_User ${CONFPATH}|cut -d':' -f2)
+        ListentDurationInMinutes=$(grep ${BlockName}_ListentDurationInMinutes ${CONFPATH}|cut -d':' -f2)
+        Mode=$(grep ${BlockName}_Mode ${CONFPATH}|cut -d':' -f2)
+        [ ${Mode} = bi ] && TestersIPs=$(grep ${BlockName}_IPs ${CONFPATH}|cut -d':' -f2) || TestersIPs=$(grep ${BlockName}_TestersIPs ${CONFPATH}|cut -d':' -f2)
+        expand_ips "TestersIPs:${TestersIPs}"
+        for TesterIP  in ${Expanded_TestersIPs}
+        do
+            mkdir -p ${LOCALSAVE}/Scripts/${BlockName}/Testers/${TesterIP}/
+            touch ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/{ExpectedDoneList,ActualDoneList}
+            scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:~/CommsMatrix/${ConfFileName}/${ExecutionDate}/Reports/ActualDoneList ${LOCALSAVE}/Reports/${BlockName}/${TesterIP}/
+            Generate_Collect_Reports
+            at -f /tmp/${ConfFileName}-${ExecutionDate}-${BlockName}-${TesterIP}-collect-reports.sh now 
         done
     fi
 done
