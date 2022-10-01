@@ -3,7 +3,7 @@ unset ConfFileName ConfFileContent BlocksNames ExecutionDate LOCALSAVE CONFPATH
 ConfFileContent=$(egrep -v '^$|^#' $1|tr -d ' '|sed 's/\[/EOB\n\[/g'|sed '1d'|sed -e '$a\EOB')
 ConfFileName=$(echo ${1##*/}|tr -d ' '|sed 's/.conf//')
 BlocksNames=$(echo "${ConfFileContent}" |grep '\['|tr -d '['|tr -d ']') 
-ExecutionDate=$(date +"%Y_%m_%d_%I_%M_%S_%p")
+ExecutionDate=$(date  +"%Y_%m_%d_%H_%M_%S")
 LOCALSAVE="${HOME}/CommsMatrix/${ConfFileName}-${ExecutionDate}"
 CONFPATH="${LOCALSAVE}/${ConfFileName}"
 SSH_PORT=22
@@ -320,15 +320,13 @@ EOF
 EOF
 }
 Generate_Collect_Reports () {
-cat <<EOF > /tmp/${ConfFileName}-${ExecutionDate}-${BlockName}-${TesterIP}-collect-reports.sh
-until [ "\$(sort -n ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/ExpectedDoneList)" = "\$(sort -n ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/ActualDoneList)" ]
+cat <<EOF > ${LOCALSAVE}/${BlockName}-ReportsGathering/${TesterIP}.sh
+until [ "\$(sort -n ${LOCALSAVE}/${BlockName}-ReportsGathering/${TesterIP}-ExpectedDoneList)" = "\$(sort -n ${LOCALSAVE}/${BlockName}-ReportsGathering/${TesterIP}-ActualDoneList)" ]
 do
     sleep $(expr ${ListentDurationInMinutes} \* 6 ) 
-    scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/${BlockName}-LocalReports/ActualDoneList ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/ 
+    scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/${BlockName}-LocalReports/ActualDoneList ${LOCALSAVE}/${BlockName}-ReportsGathering/${TesterIP}-ActualDoneList 
 done
-rm -rf ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}
 scp -rP ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/${BlockName}-LocalReports ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}
-rm -f ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/ActualDoneList
 EOF
 }
 ######################Start######################
@@ -550,6 +548,7 @@ do
         echo -e "\tcreate/execute listener/testers script for \033[0;32m${BlockName}\033[0m:"
         unset User ListentDurationInMinutes Mode IPs TestersIPs ListenersIPs TCPPorts UDPPorts Expanded_TestersIPs Expanded_ListenersIPs
         mkdir -p ${LOCALSAVE}/${BlockName}-Scripts/{Listeners,Testers}/
+        mkdir -p ${LOCALSAVE}/${BlockName}-Reports
         User=$(grep ${BlockName}_User ${CONFPATH}|cut -d':' -f2)
         ListentDurationInMinutes=$(grep ${BlockName}_ListentDurationInMinutes ${CONFPATH}|cut -d':' -f2)
         grep -q ${BlockName}_TCPPorts ${CONFPATH} &&  TCPPorts=$( grep ${BlockName}_TCPPorts ${CONFPATH}|cut -d ':' -f2 )
@@ -579,17 +578,17 @@ do
             for TesterIP  in ${Expanded_TestersIPs}
             do
                 echo -e "\t\t\tTester:\033[0;32m ${TesterIP}=>${ListenerIP} \033[0m"
-                mkdir -p ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}
+                mkdir -p ${LOCALSAVE}/${BlockName}-ReportsGathering
                 generate_testers
                 grep -q ${BlockName}_TCPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-tcp.sh &> /dev/null
                 grep -q ${BlockName}_UDPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-udp.sh &> /dev/null
                 if ! [ -z ${TCPPorts} ] 
                 then
-                    echo  "${TesterIP}-${ListenerIP}-tcp" >> ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/ExpectedDoneList
+                    echo  "${TesterIP}-${ListenerIP}-tcp" >> ${LOCALSAVE}/${BlockName}-ReportsGathering/${TesterIP}-ExpectedDoneList
                 fi
                 if ! [ -z ${UDPPorts} ] 
                 then
-                    echo  "${TesterIP}-${ListenerIP}-udp" >> ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/ExpectedDoneList
+                    echo  "${TesterIP}-${ListenerIP}-udp" >> ${LOCALSAVE}/${BlockName}-ReportsGathering/${TesterIP}-ExpectedDoneList
                 fi
             done
         done
@@ -613,10 +612,10 @@ do
         for TesterIP  in ${Expanded_TestersIPs}
         do
             echo -e "\t\t\033[0;32m  ${TesterIP} \033[0m reports will be saved once finished in\033[0;32m ${LOCALSAVE}/${BlockName}-Scripts/Testers/ \033[0m"
-            touch ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/{ExpectedDoneList,ActualDoneList}
-            scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/${BlockName}-LocalReports/ActualDoneList ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/ &> /dev/null
+            touch ${LOCALSAVE}/${BlockName}-ReportsGathering/${TesterIP}-{ExpectedDoneList,ActualDoneList}
+            scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/${BlockName}-LocalReports/ActualDoneList ${LOCALSAVE}/${BlockName}-ReportsGathering/${TesterIP}-ActualDoneList/ &> /dev/null
             Generate_Collect_Reports &> /dev/null
-            at -f /tmp/${ConfFileName}-${ExecutionDate}-${BlockName}-${TesterIP}-collect-reports.sh now &> /dev/null
+            at -f ${LOCALSAVE}/${BlockName}-ReportsGathering/${TesterIP}.sh now &> /dev/null
         done
     fi
 done
