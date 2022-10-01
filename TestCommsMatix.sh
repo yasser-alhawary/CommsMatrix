@@ -5,7 +5,6 @@ ConfFileName=$(echo ${1##*/}|tr -d ' '|sed 's/.conf//')
 BlocksNames=$(echo "${ConfFileContent}" |grep '\['|tr -d '['|tr -d ']') 
 ExecutionDate=$(date +"%Y_%m_%d_%I_%M_%S_%p")
 LOCALSAVE="${HOME}/CommsMatrix/${ConfFileName}-${ExecutionDate}"
-REMOTESAVE="\${HOME}/CommsMatrix/${ConfFileName}-${ExecutionDate}"
 CONFPATH="${LOCALSAVE}/${ConfFileName}"
 SSH_PORT=22
 Listener_UDPScript="#! /usr/bin/python
@@ -214,6 +213,7 @@ generate_listeners () {
         done
 EOF
             [ -z ${UDPPorts} ] || cat <<EOF > ${LOCALSAVE}/${BlockName}-Scripts/Listeners/${ListenerIP}-udp.sh
+            #!/bin/bash
             FWStatus=\$(systemctl show -p ActiveState firewalld | sed 's/ActiveState=//g')
             [ \${FWStatus} = active ] && systemctl stop firewalld && echo 'systemctl start firewalld ' |at now +${ListentDurationInMinutes} minutes
             rpm -qa |grep -q nmap-ncat || yum install -y -q nmap-ncat 
@@ -324,10 +324,11 @@ cat <<EOF > /tmp/${ConfFileName}-${ExecutionDate}-${BlockName}-${TesterIP}-colle
 until [ "\$(sort -n ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/ExpectedDoneList)" = "\$(sort -n ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/ActualDoneList)" ]
 do
     sleep $(expr ${ListentDurationInMinutes} \* 6 ) 
-    scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:~/CommsMatrix/${ConfFileName}-${ExecutionDate}/${BlockName}-LocalReports/ActualDoneList ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/
+    scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/${BlockName}-LocalReports/ActualDoneList ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/ 
 done
-scp -rP ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:~/CommsMatrix/${ConfFileName}-${ExecutionDate}/${BlockName}-LocalReports/\* ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/
-rm -f ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/{ActualDoneList,ExpectedDoneList}
+rm -rf ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}
+scp -rP ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/${BlockName}-LocalReports ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}
+rm -f ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/ActualDoneList
 EOF
 }
 ######################Start######################
@@ -556,7 +557,15 @@ do
         Mode=$(grep ${BlockName}_Mode ${CONFPATH}|cut -d':' -f2)
         [ ${Mode} = bi ] && ListenersIPs=$(grep ${BlockName}_IPs ${CONFPATH}|cut -d':' -f2) || ListenersIPs=$(grep ${BlockName}_ListenersIPs ${CONFPATH}|cut -d':' -f2)
         [ ${Mode} = bi ] && TestersIPs=$(grep ${BlockName}_IPs ${CONFPATH}|cut -d':' -f2) || TestersIPs=$(grep ${BlockName}_TestersIPs ${CONFPATH}|cut -d':' -f2)
-        [ ${User} = root ] &&   ATCMD="at now" ||   ATCMD="sudo at now"
+        if [ ${User} = root ] 
+        then
+            ATCMD="at now"
+            REMOTEHOME=/root
+        else
+            ATCMD="sudo -E --preserve-env=HOME at now"
+            REMOTEHOME=/home/${User}
+        fi
+        REMOTESAVE="${REMOTEHOME}/CommsMatrix/${ConfFileName}-${ExecutionDate}"
         #convert the input to spaced individual ips 
         expand_ips "ListenersIPs:${ListenersIPs}"
         expand_ips "TestersIPs:${TestersIPs}"
@@ -598,14 +607,16 @@ do
         ListentDurationInMinutes=$(grep ${BlockName}_ListentDurationInMinutes ${CONFPATH}|cut -d':' -f2)
         Mode=$(grep ${BlockName}_Mode ${CONFPATH}|cut -d':' -f2)
         [ ${Mode} = bi ] && TestersIPs=$(grep ${BlockName}_IPs ${CONFPATH}|cut -d':' -f2) || TestersIPs=$(grep ${BlockName}_TestersIPs ${CONFPATH}|cut -d':' -f2)
+        [ ${User} = root ] &&  REMOTEHOME="/root" ||   REMOTEHOME="/home/${User}"
+        REMOTESAVE="${REMOTEHOME}/CommsMatrix/${ConfFileName}-${ExecutionDate}"
         expand_ips "TestersIPs:${TestersIPs}"
         for TesterIP  in ${Expanded_TestersIPs}
         do
             echo -e "\t\t\033[0;32m  ${TesterIP} \033[0m reports will be saved once finished in\033[0;32m ${LOCALSAVE}/${BlockName}-Scripts/Testers/ \033[0m"
             touch ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/{ExpectedDoneList,ActualDoneList}
-            scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:~/CommsMatrix/${ConfFileName}-${ExecutionDate}/${BlockName}-LocalReports/ActualDoneList ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/
-            Generate_Collect_Reports
-            at -f /tmp/${ConfFileName}-${ExecutionDate}-${BlockName}-${TesterIP}-collect-reports.sh now  &> /dev/null
+            scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/${BlockName}-LocalReports/ActualDoneList ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/ &> /dev/null
+            Generate_Collect_Reports &> /dev/null
+            at -f /tmp/${ConfFileName}-${ExecutionDate}-${BlockName}-${TesterIP}-collect-reports.sh now &> /dev/null
         done
     fi
 done
