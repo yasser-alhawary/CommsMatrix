@@ -258,7 +258,7 @@ EOF
 generate_testers () {
                 [ -z ${TCPPorts} ] || cat <<EOF > ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-tcp.sh
                 #!/bin/bash
-                mkdir -p ${REMOTESAVE}/${BlockName}-LocalReports/tcp/
+                mkdir -p ${REMOTESAVE}/${BlockName}-LocalReports
                 touch ${REMOTESAVE}/${BlockName}-LocalReports/ActualDoneList
                 rpm -qa |grep -q nmap-ncat || yum install -y -q nmap-ncat 
                 for Ports in \$(echo ${TCPPorts}|tr ',' ' ')
@@ -275,21 +275,21 @@ generate_testers () {
                             exit_status=\$?
                             if [ \${exit_status} -eq 0 ]
                             then        
-                                for Port in \$(seq \${Start_Port} \${End_Port}) ; do nc -vz -w 2 ${ListenerIP} \${Port}   &>> ${REMOTESAVE}/${BlockName}-LocalReports/tcp/${TesterIP}-${ListenerIP}.txt ; done
+                                for Port in \$(seq \${Start_Port} \${End_Port}) ; do nc -vz -w 2 ${ListenerIP} \${Port}   &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt ; done
                                 break
                             else
                                 sleep \${retry}
                             fi
                         done
                     else
-                        nc -vz -w 2 ${ListenerIP} \${Ports}   &>> ${REMOTESAVE}/${BlockName}-LocalReports/tcp/${TesterIP}-${ListenerIP}.txt
+                        nc -vz -w 2 ${ListenerIP} \${Ports}   &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt
                     fi
                 done
                 echo  "${TesterIP}-${ListenerIP}-tcp" >> ${REMOTESAVE}/${BlockName}-LocalReports/ActualDoneList
 EOF
             [ -z ${UDPPorts} ] || cat <<EOF > ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-udp.sh
             #!/bin/bash
-            mkdir -p ${REMOTESAVE}/${BlockName}-LocalReports/udp/
+            mkdir -p ${REMOTESAVE}/${BlockName}-LocalReports
             touch ${REMOTESAVE}/${BlockName}-LocalReports/ActualDoneList
             rpm -qa |grep -q nmap-ncat || yum install -y -q nmap-ncat 
             for Ports in \$(echo ${UDPPorts}|tr ',' ' ')
@@ -306,14 +306,14 @@ EOF
                             exit_status=\$?
                             if [ \${exit_status} -eq 0 ]
                             then        
-                                for Port in \$(seq \${Start_Port} \${End_Port}) ; do nc -vuz -w 2 ${ListenerIP} \${Port}   &>> ${REMOTESAVE}/${BlockName}-LocalReports/udp/${TesterIP}-${ListenerIP}.txt ; done
+                                for Port in \$(seq \${Start_Port} \${End_Port}) ; do nc -vuz -w 2 ${ListenerIP} \${Port}   &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt ; done
                                 break
                             else
                                 sleep \$retry
                             fi
                     done
                 else
-                    nc -vuz -w 2 ${ListenerIP} \${Ports}   &>> ${REMOTESAVE}/${BlockName}-LocalReports/udp/${TesterIP}-${ListenerIP}.txt
+                    nc -vuz -w 2 ${ListenerIP} \${Ports}   &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt
                 fi
             done
             echo  "${TesterIP}-${ListenerIP}-udp" >> ${REMOTESAVE}/${BlockName}-LocalReports/ActualDoneList
@@ -326,7 +326,7 @@ do
     sleep $(expr ${ListentDurationInMinutes} \* 6 ) 
     scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:~/CommsMatrix/${ConfFileName}-${ExecutionDate}/${BlockName}-LocalReports/ActualDoneList ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/
 done
-scp -rP ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:~/CommsMatrix/${ConfFileName}-${ExecutionDate}/${BlockName}-LocalReports/{tcp,udp} ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/
+scp -rP ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:~/CommsMatrix/${ConfFileName}-${ExecutionDate}/${BlockName}-LocalReports/\* ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/
 rm -f ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/{ActualDoneList,ExpectedDoneList}
 EOF
 }
@@ -548,7 +548,7 @@ do
     then 
         echo -e "\tcreate/execute listener/testers script for \033[0;32m${BlockName}\033[0m:"
         unset User ListentDurationInMinutes Mode IPs TestersIPs ListenersIPs TCPPorts UDPPorts Expanded_TestersIPs Expanded_ListenersIPs
-        mkdir -p ${LOCALSAVE}/${BlockName}-Scripts/Listeners/
+        mkdir -p ${LOCALSAVE}/${BlockName}-Scripts/{Listeners,Testers}/
         User=$(grep ${BlockName}_User ${CONFPATH}|cut -d':' -f2)
         ListentDurationInMinutes=$(grep ${BlockName}_ListentDurationInMinutes ${CONFPATH}|cut -d':' -f2)
         grep -q ${BlockName}_TCPPorts ${CONFPATH} &&  TCPPorts=$( grep ${BlockName}_TCPPorts ${CONFPATH}|cut -d ':' -f2 )
@@ -570,18 +570,16 @@ do
             for TesterIP  in ${Expanded_TestersIPs}
             do
                 echo -e "\t\t\tTester:\033[0;32m ${TesterIP}=>${ListenerIP} \033[0m"
-                mkdir -p ${LOCALSAVE}/${BlockName}-Scripts/Testers/
+                mkdir -p ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}
                 generate_testers
                 grep -q ${BlockName}_TCPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-tcp.sh &> /dev/null
                 grep -q ${BlockName}_UDPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-udp.sh &> /dev/null
                 if ! [ -z ${TCPPorts} ] 
                 then
-                    mkdir -p ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/tcp
                     echo  "${TesterIP}-${ListenerIP}-tcp" >> ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/ExpectedDoneList
                 fi
                 if ! [ -z ${UDPPorts} ] 
                 then
-                    mkdir -p ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/udp
                     echo  "${TesterIP}-${ListenerIP}-udp" >> ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/ExpectedDoneList
                 fi
             done
@@ -604,7 +602,6 @@ do
         for TesterIP  in ${Expanded_TestersIPs}
         do
             echo -e "\t\t\033[0;32m  ${TesterIP} \033[0m reports will be saved once finished in\033[0;32m ${LOCALSAVE}/${BlockName}-Scripts/Testers/ \033[0m"
-            mkdir -p ${LOCALSAVE}/${BlockName}-Scripts/Testers/
             touch ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/{ExpectedDoneList,ActualDoneList}
             scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:~/CommsMatrix/${ConfFileName}-${ExecutionDate}/${BlockName}-LocalReports/ActualDoneList ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}/
             Generate_Collect_Reports
