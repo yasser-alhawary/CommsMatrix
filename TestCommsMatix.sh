@@ -20,7 +20,7 @@ sock.setsockopt(SOL_SOCKET,SO_REUSEADDR, 1)
 sock.bind((localIP, localPort))
 while True:
     message, ipport = sock.recvfrom(bufSize)"
-#Basic Validation for the shell/block names
+#Basic Validation and dependencies for the shell/block names
 #validate linux shell
 [ $(uname -s) != "Linux" ] && echo "script does not support emulator,some expressions/commands will break" && exit 1
 #validate no duplicate blocknames
@@ -28,6 +28,9 @@ for BlockName in ${BlocksNames}
 do
     [ $(echo "${BlocksNames}"|grep ${BlockName} | wc -l)  !=  1 ] && echo "Block Names can not be duplicated" && exit 1
 done
+#install dependencies locally
+rpm -qa |grep -q '^nmap-ncat' ||sudo  yum install -y -q nmap-ncat &> /dev/null
+rpm -qa |grep -q '^at-' || sudo yum install -y -q at && sudo  systemctl start atd  &> /dev/null
 ####functions to be called later#####
 #1-Validation functions
 Validate_Ports() {
@@ -131,7 +134,10 @@ Validate_Access(){
     [ ${exit_status} -ne 0 ]  &&  echo "host ${1} is not ssh accessible , port ${SSH_PORT} is down" && exit 3
     ssh -q -p ${SSH_PORT}  -o PasswordAuthentication=no -o StrictHostKeyChecking=no ${User}@${1} sudo -vn &> /dev/null
     exit_status=$?
-    if [ ${exit_status} -eq 1 ]
+    if [ ${exit_status} -eq 0 ]
+    then
+        ssh -q -p ${SSH_PORT}  -o PasswordAuthentication=no -o StrictHostKeyChecking=no ${User}@${1} 'rpm -qa |grep -q '^at-' || sudo yum install -y -q at && sudo  systemctl start atd' &> /dev/null
+    elif [ ${exit_status} -eq 1 ]
     then
         echo "${User} on ${1} is not a sudoer or sudoer password required " && exit 3
     elif [ ${exit_status} -eq 255 ]
@@ -176,9 +182,9 @@ expand_ips() {
 generate_listeners () {
         [ -z ${TCPPorts} ] || cat <<EOF > ${LOCALSAVE}/${BlockName}-Scripts/Listeners/${ListenerIP}-tcp.sh
         #!/bin/bash
-        FWStatus=\$(systemctl show -p ActiveState firewalld | sed 's/ActiveState=//g')
-        [ \${FWStatus} = active ] && systemctl stop firewalld && echo 'systemctl start firewalld ' |at now +${ListentDurationInMinutes} minutes
-        rpm -qa |grep -q nmap-ncat && yum install -y -q nmap-ncat 
+        FWStatus=\$(sudo systemctl show -p ActiveState firewalld | sed 's/ActiveState=//g')
+        [ \${FWStatus} = active ] && sudo systemctl stop firewalld && echo 'sudo systemctl start firewalld ' |at now +${ListentDurationInMinutes} minutes
+        rpm -qa |grep -q '^nmap-ncat' ||sudo  yum install -y -q nmap-ncat 
         for Ports in \$(echo ${TCPPorts}|tr ',' ' ')
         do
             echo "\${Ports}"|grep -q '-'
@@ -214,9 +220,9 @@ generate_listeners () {
 EOF
             [ -z ${UDPPorts} ] || cat <<EOF > ${LOCALSAVE}/${BlockName}-Scripts/Listeners/${ListenerIP}-udp.sh
             #!/bin/bash
-            FWStatus=\$(systemctl show -p ActiveState firewalld | sed 's/ActiveState=//g')
-            [ \${FWStatus} = active ] && systemctl stop firewalld && echo 'systemctl start firewalld ' |at now +${ListentDurationInMinutes} minutes
-            rpm -qa |grep -q nmap-ncat || yum install -y -q nmap-ncat 
+            FWStatus=\$(sudo systemctl show -p ActiveState firewalld | sed 's/ActiveState=//g')
+            [ \${FWStatus} = active ] && sudo systemctl stop firewalld && echo 'sudo systemctl start firewalld ' |at now +${ListentDurationInMinutes} minutes
+            rpm -qa |grep -q '^nmap-ncat' ||sudo  yum install -y -q nmap-ncat 
             [ -e /tmp/UDP-Listener.py ] || echo "${Listener_UDPScript}" >> /tmp/UDP-Listener.py
             for Ports in \$(echo ${UDPPorts}|tr ',' ' ')
             do
@@ -258,9 +264,12 @@ EOF
 generate_testers () {
                 [ -z ${TCPPorts} ] || cat <<EOF > ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-tcp.sh
                 #!/bin/bash
+                FWStatus=\$(sudo systemctl show -p ActiveState firewalld | sed 's/ActiveState=//g')
+                [ \${FWStatus} = active ] && sudo systemctl stop firewalld && echo 'sudo systemctl start firewalld ' |at now +${ListentDurationInMinutes} minutes
+                rpm -qa |grep -q '^nmap-ncat' ||sudo  yum install -y -q nmap-ncat 
                 mkdir -p ${REMOTESAVE}/${BlockName}-LocalReports
                 touch ${REMOTESAVE}/${BlockName}-LocalReports/ActualDoneList
-                rpm -qa |grep -q nmap-ncat || yum install -y -q nmap-ncat 
+                rpm -qa |grep -q '^nmap-ncat' || yum install -y -q nmap-ncat 
                 for Ports in \$(echo ${TCPPorts}|tr ',' ' ')
                 do
                     echo "\${Ports}"|grep -q '-'
@@ -289,9 +298,12 @@ generate_testers () {
 EOF
             [ -z ${UDPPorts} ] || cat <<EOF > ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-udp.sh
             #!/bin/bash
+            FWStatus=\$(sudo systemctl show -p ActiveState firewalld | sed 's/ActiveState=//g')
+            [ \${FWStatus} = active ] && sudo systemctl stop firewalld && echo 'sudo systemctl start firewalld ' |at now +${ListentDurationInMinutes} minutes
+            rpm -qa |grep -q '^nmap-ncat' ||sudo  yum install -y -q nmap-ncat 
             mkdir -p ${REMOTESAVE}/${BlockName}-LocalReports
             touch ${REMOTESAVE}/${BlockName}-LocalReports/ActualDoneList
-            rpm -qa |grep -q nmap-ncat || yum install -y -q nmap-ncat 
+            rpm -qa |grep -q '^nmap-ncat' || yum install -y -q nmap-ncat 
             for Ports in \$(echo ${UDPPorts}|tr ',' ' ')
             do
                 echo "\${Ports}"|grep -q '-'
