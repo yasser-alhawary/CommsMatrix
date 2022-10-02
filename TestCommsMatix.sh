@@ -7,7 +7,7 @@ ExecutionDate=$(date  +"%Y_%m_%d_%H_%M_%S")
 LOCALSAVE="${HOME}/CommsMatrix/${ConfFileName}-${ExecutionDate}"
 CONFPATH="${LOCALSAVE}/${ConfFileName}"
 SSH_PORT=22
-Listener_UDPScript="#! /usr/bin/python
+Listener_UDPScript="#!/usr/bin/python
 from socket import socket,AF_INET,SOCK_DGRAM,SO_REUSEADDR,SOL_SOCKET
 from time import sleep,ctime
 import sys
@@ -20,17 +20,21 @@ sock.setsockopt(SOL_SOCKET,SO_REUSEADDR, 1)
 sock.bind((localIP, localPort))
 while True:
     message, ipport = sock.recvfrom(bufSize)"
-#Basic Validation and dependencies for the shell/block names
-#validate linux shell
-[ $(uname -s) != "Linux" ] && echo "script does not support emulator,some expressions/commands will break" && exit 1
-#validate no duplicate blocknames
-for BlockName in ${BlocksNames}
-do
-    [ $(echo "${BlocksNames}"|grep ${BlockName} | wc -l)  !=  1 ] && echo "Block Names can not be duplicated" && exit 1
-done
-#install dependencies locally
-rpm -qa |grep -q '^nmap-ncat' ||sudo  yum install -y -q nmap-ncat &> /dev/null
-rpm -qa |grep -q '^at-' || sudo yum install -y -q at && sudo  systemctl start atd  &> /dev/null
+Listener_TCPScript="#!/usr/bin/python
+import socket
+import sys
+if len(sys.argv)>2:
+    localIP = sys.argv[1]
+    localPort = int(sys.argv[2])
+bufSize = 1500
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.bind((localIP, localPort))
+sock.listen(1)
+conn, addr = sock.accept()
+while True:
+    data = conn.recv(bufSize)
+    conn.sendall(data)"
+
 ####functions to be called later#####
 #1-Validation functions
 Validate_Ports() {
@@ -134,10 +138,7 @@ Validate_Access(){
     [ ${exit_status} -ne 0 ]  &&  echo "host ${1} is not ssh accessible , port ${SSH_PORT} is down" && exit 3
     ssh -q -p ${SSH_PORT}  -o PasswordAuthentication=no -o StrictHostKeyChecking=no ${User}@${1} sudo -vn &> /dev/null
     exit_status=$?
-    if [ ${exit_status} -eq 0 ]
-    then
-        ssh -q -p ${SSH_PORT}  -o PasswordAuthentication=no -o StrictHostKeyChecking=no ${User}@${1} 'rpm -qa |grep -q '^at-' || sudo yum install -y -q at && sudo  systemctl start atd' &> /dev/null
-    elif [ ${exit_status} -eq 1 ]
+    if [ ${exit_status} -eq 1 ]
     then
         echo "${User} on ${1} is not a sudoer or sudoer password required " && exit 3
     elif [ ${exit_status} -eq 255 ]
@@ -148,6 +149,23 @@ Validate_Access(){
         echo "sudo access with no password is not satisified on host ${1} user ${User} " && exit 3
     fi
 }
+Validate_Install_Dependencies () {
+    which yum &> /dev/null
+    exit_status=$?
+    if [ $exit_status -eq 0 ]
+    then
+        which nc || sudo  yum install -y -q  nc
+        which at || sudo  yum install -y -q at && sudo  systemctl start atd 
+    fi
+    which apt-get &> /dev/null
+    exit_status=$?
+    if [ $exit_status -eq 0 ]
+    then
+        which nc || sudo  apt-get install -y -q nc
+        which at || sudo  apt-get install -y -q at && sudo  systemctl start atd
+    fi
+}
+
 #2-Expand ips function and also exclude ips that are unreachable or is not root or sudoer nopasswd on it , logged
 expand_ips() {   
     unset Expanded_IPs
@@ -178,13 +196,13 @@ expand_ips() {
     IPName=$(echo $1|cut -d ':' -f1)
     [ ${IPName} = ListenersIPs ] && Expanded_ListenersIPs=${Expanded_IPs} || Expanded_TestersIPs=${Expanded_IPs}
 }
-#3-Generate the listeners script function
+#3-Generate script for listeners/testers/report gathering
 generate_listeners () {
         [ -z ${TCPPorts} ] || cat <<EOF > ${LOCALSAVE}/${BlockName}-Scripts/Listeners/${ListenerIP}-tcp.sh
         #!/bin/bash
         FWStatus=\$(sudo systemctl show -p ActiveState firewalld | sed 's/ActiveState=//g')
         [ \${FWStatus} = active ] && sudo systemctl stop firewalld && echo 'sudo systemctl start firewalld ' |at now +${ListentDurationInMinutes} minutes
-        rpm -qa |grep -q '^nmap-ncat' ||sudo  yum install -y -q nmap-ncat 
+        [ -e /tmp/TCP-Listener.py ] || echo "${Listener_TCPScript}" >> /tmp/TCP-Listener.py
         for Ports in \$(echo ${TCPPorts}|tr ',' ' ')
         do
             echo "\${Ports}"|grep -q '-'
@@ -199,9 +217,14 @@ generate_listeners () {
                     exit_status=\$?
                     if [ \${exit_status} -ne 0 ]
                     then
-                        echo "nc -4kl ${ListenerIP} \${Port}"|at now
-                        PID=\$( pgrep -la nc|grep "${ListenerIP} \${Port}"|cut -d' ' -f1)
-                        while [ -z \${PID} ] ; do   PID=\$( pgrep -la nc|grep "${ListenerIP} \${Port}"|cut -d' ' -f1) ; done
+                        #echo "nc -4kl ${ListenerIP} \${Port}"|at now
+                        #PID=\$( pgrep -la nc|grep "${ListenerIP} \${Port}"|cut -d' ' -f1)
+                        #while [ -z \${PID} ] ; do   PID=\$( pgrep -la nc|grep "${ListenerIP} \${Port}"|cut -d' ' -f1) ; done
+                        #echo "kill -9 \${PID} "|at now +${ListentDurationInMinutes} minutes
+                        echo "python /tmp/TCP-Listener.py ${ListenerIP} \${Port}"|at now
+                        unset PID
+                        PID=\$(pgrep -la python|grep "/tmp/TCP-Listener.py ${ListenerIP} \${Port}"|cut -d' ' -f1)
+                        while [ -z \${PID} ] ; do PID=\$(pgrep -la python|grep "/tmp/TCP-Listener.py ${ListenerIP} \${Port}"|cut -d' ' -f1) ; done
                         echo "kill -9 \${PID} "|at now +${ListentDurationInMinutes} minutes
                     fi
                 done
@@ -210,9 +233,14 @@ generate_listeners () {
                 exit_status=\$?
                 if [ \${exit_status} -ne 0 ]
                 then
-                    echo "nc -4kl ${ListenerIP} \${Ports}"|at now
-                    PID=\$( pgrep -la nc|grep "${ListenerIP} \${Ports}"|cut -d' ' -f1)
-                    while [ -z \${PID} ] ; do   PID=\$( pgrep -la nc|grep "${ListenerIP} \${Ports}"|cut -d' ' -f1) ; done
+                    #echo "nc -4kl ${ListenerIP} \${Ports}"|at now
+                    #PID=\$( pgrep -la nc|grep "${ListenerIP} \${Ports}"|cut -d' ' -f1)
+                    #while [ -z \${PID} ] ; do   PID=\$( pgrep -la nc|grep "${ListenerIP} \${Ports}"|cut -d' ' -f1) ; done
+                    #echo "kill -9 \${PID} "|at now +${ListentDurationInMinutes} minutes
+                    echo "python /tmp/TCP-Listener.py ${ListenerIP} \${Ports}"|at now
+                    unset PID
+                    PID=\$(pgrep -la python|grep "/tmp/TCP-Listener.py ${ListenerIP} \${Ports}"|cut -d' ' -f1)
+                    while [ -z \${PID} ] ; do PID=\$(pgrep -la python|grep "/tmp/TCP-Listener.py ${ListenerIP} \${Ports}"|cut -d' ' -f1) ; done
                     echo "kill -9 \${PID} "|at now +${ListentDurationInMinutes} minutes
                 fi
             fi
@@ -222,7 +250,6 @@ EOF
             #!/bin/bash
             FWStatus=\$(sudo systemctl show -p ActiveState firewalld | sed 's/ActiveState=//g')
             [ \${FWStatus} = active ] && sudo systemctl stop firewalld && echo 'sudo systemctl start firewalld ' |at now +${ListentDurationInMinutes} minutes
-            rpm -qa |grep -q '^nmap-ncat' ||sudo  yum install -y -q nmap-ncat 
             [ -e /tmp/UDP-Listener.py ] || echo "${Listener_UDPScript}" >> /tmp/UDP-Listener.py
             for Ports in \$(echo ${UDPPorts}|tr ',' ' ')
             do
@@ -260,16 +287,13 @@ EOF
             done
 EOF
 }
-#generate the testers functions
 generate_testers () {
                 [ -z ${TCPPorts} ] || cat <<EOF > ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-tcp.sh
                 #!/bin/bash
                 FWStatus=\$(sudo systemctl show -p ActiveState firewalld | sed 's/ActiveState=//g')
                 [ \${FWStatus} = active ] && sudo systemctl stop firewalld && echo 'sudo systemctl start firewalld ' |at now +${ListentDurationInMinutes} minutes
-                rpm -qa |grep -q '^nmap-ncat' ||sudo  yum install -y -q nmap-ncat 
                 mkdir -p ${REMOTESAVE}/${BlockName}-LocalReports
                 touch ${REMOTESAVE}/${BlockName}-LocalReports/ActualDoneList
-                rpm -qa |grep -q '^nmap-ncat' || yum install -y -q nmap-ncat 
                 for Ports in \$(echo ${TCPPorts}|tr ',' ' ')
                 do
                     echo "\${Ports}"|grep -q '-'
@@ -300,10 +324,8 @@ EOF
             #!/bin/bash
             FWStatus=\$(sudo systemctl show -p ActiveState firewalld | sed 's/ActiveState=//g')
             [ \${FWStatus} = active ] && sudo systemctl stop firewalld && echo 'sudo systemctl start firewalld ' |at now +${ListentDurationInMinutes} minutes
-            rpm -qa |grep -q '^nmap-ncat' ||sudo  yum install -y -q nmap-ncat 
             mkdir -p ${REMOTESAVE}/${BlockName}-LocalReports
             touch ${REMOTESAVE}/${BlockName}-LocalReports/ActualDoneList
-            rpm -qa |grep -q '^nmap-ncat' || yum install -y -q nmap-ncat 
             for Ports in \$(echo ${UDPPorts}|tr ',' ' ')
             do
                 echo "\${Ports}"|grep -q '-'
@@ -342,6 +364,16 @@ scp -rP ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTES
 EOF
 }
 ######################Start######################
+#essential Validation 
+#validate linux shell
+[ $(uname -s) != "Linux" ] && echo "script does not support emulator,some expressions/commands will break" && exit 1
+#validate no duplicate blocknames
+for BlockName in ${BlocksNames}
+do
+    [ $(echo "${BlocksNames}"|grep ${BlockName} | wc -l)  !=  1 ] && echo "Block Names can not be duplicated" && exit 1
+done
+#make sure the current host have nc/at
+Validate_Install_Dependencies &> /dev/null
 #write to $CONFPATH
 echo -e "1 - start writing a consistent configuration file"
 mkdir -p ${LOCALSAVE}
@@ -512,6 +544,7 @@ echo -e "4 - Conf File \033[0;32m  ${CONFPATH} \033[0m has a valid attributes ke
 #ips match ips regex
 #ports intger from 0 - 65536
 #validate remote ips ssh access and sudo no passwd privilege
+
 echo -e "5 - validate attributes values started"
 
 for BlockName in ${BlocksNames}
@@ -535,17 +568,22 @@ do
             expand_ips "TestersIPs:${TestersIPs}"
             for ListenerIP in ${Expanded_ListenersIPs}
             do 
-                Validate_Access ${ListenerIP}
+                Validate_Access ${ListenerIP} 
+                 ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${ListenerIP} "$(typeset -f Validate_Install_Dependencies);   Validate_Install_Dependencies" &> /dev/null
             done
             for TesterIP in ${Expanded_TestersIPs}
             do 
                 Validate_Access ${TesterIP}
+                ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${TesterIP} "$(typeset -f Validate_Install_Dependencies);   Validate_Install_Dependencies" &> /dev/null
+
             done
         else
             expand_ips "ListenersIPs:${ListenersIPs}"
             for ListenerIP in ${Expanded_ListenersIPs}
             do
                 Validate_Access ${ListenerIP}
+                ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${ListenerIP} "$(typeset -f Validate_Install_Dependencies);   Validate_Install_Dependencies" &> /dev/null
+
             done
         fi
     fi
