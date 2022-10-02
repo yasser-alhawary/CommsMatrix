@@ -48,30 +48,24 @@ Validate_Ports() {
 				End_Port=$(echo ${Ports}|cut -d '-' -f2 )
 				if ! [[ ${Start_Port} == ?(-)+([0-9]) ]] 
 				then
-					echo port number ${Start_Port} is not an intger 
-					exit 3
+                    Raise_Error 6 $2 "Start port ${Start_Port} is not integer "
 				elif ! [[ ${End_Port} == ?(-)+([0-9]) ]] 
                 then
-                    echo port number ${End_Port} is not an intger 
-                    exit 3
+                    Raise_Error 6 $2 "End port ${End_Port} is not integer "
 				elif [ ${Start_Port} -lt 0 -o ${Start_Port} -gt 65536 -o ${End_Port} -lt 0 -o ${End_Port} -gt 65536 ]
 				then
-					echo port number should have value between 0 65536 , check port range ${Start_Port} to ${End_Port}
-					exit 3
+					Raise_Error 6 $2 "Port Range is 0=>65536"
 				elif [ ${Start_Port} -gt ${End_Port} ]
 				then
-					echo ${Start_Port} ${End_Port} is invalide port range
-					exit 3
+					Raise_Error 6 $2 "Start port ${Start_Port} is greater than End port ${End_Port}"
 				fi
 			else
 				if ! [[ ${Ports} == ?(-)+([0-9]) ]] 
 				then
-					echo port number ${Ports} is not an intger 
-					exit 3
+					Raise_Error 6 $2 "port ${Ports} is not intger"
 				elif [ ${Ports} -lt 0 -o ${Ports} -gt 65536 ]
 				then 
-					echo invalid port specified ${Ports} , allowed values between 0 65536
-					exit 3
+					Raise_Error 6 $2 "Port Range is 0=>65536"
 				fi
 			fi
 		done
@@ -97,24 +91,20 @@ Validate_IPS () {
             do
                 if ! [[ ${IP} =~  ^(([1-9]?[0-9]|1[0-9][0-9]|2([0-4][0-9]|5[0-5]))\.){3}([1-9]?[0-9]|1[0-9][0-9]|2([0-4][0-9]|5[0-5]))$ ]]
                 then
-                    echo ip ${IP} is not well formatted 
-                    exit 3
+                    Raise_Error 6 $2 "Ip ${IP} bad format"
                 fi
             done
             if [ ${Start_IP_OCT1} -ne ${End_IP_OCT1} -o ${Start_IP_OCT2} -ne ${End_IP_OCT2} -o ${Start_IP_OCT3} -ne ${End_IP_OCT3} ]
             then
-                echo not allowed ip range , only the right most octet in iprange can be different
-                exit 3
+                Raise_Error 6 $2 "Script support /24 range only,specified value ${Start_IP}=>${End_IP}"
             elif [ ${Start_IP_OCT4} -gt ${End_IP_OCT4} ]
             then 
-                echo "ip range is not well formated, ${Start_IP_OCT4} is greater than ${End_IP_OCT4} "
-                exit 3
+                Raise_Error 6 $2 "Range ${Start_IP}=>${End_IP} Invalid"
             fi
 		else 
 			if ! [[ ${IPs} =~  ^(([1-9]?[0-9]|1[0-9][0-9]|2([0-4][0-9]|5[0-5]))\.){3}([1-9]?[0-9]|1[0-9][0-9]|2([0-4][0-9]|5[0-5]))$ ]]
 			then
-				echo ip ${IPs} is not well formatted 
-				exit 3
+				Raise_Error 6 $2 "Ip ${IPs} bad format"
 			fi
 		fi
 	done
@@ -122,31 +112,29 @@ Validate_IPS () {
 Validate_ListentDurationInMinutes () {
 			if [[ $1 == ?(-)+([0-9]) ]] 
 			then
-				if [[ $1 -eq 0 ]]
+				if [ $1 -le 0 ]
 				then
-				echo ListentDurationInMinutes $1 must be greater than 0
-				exit 3
+                    Raise_Error 6 $2 "can not be zero or netgative"
 				fi
 			else 
-				echo ListentDurationInMinutes $1 is not an intger number 
-				exit 3
+                    Raise_Error 6 $2 "is not an integer"
 			fi
 }
 Validate_Access(){
     nc -w 2 -z ${1} ${SSH_PORT} 
     exit_status=$?
-    [ ${exit_status} -ne 0 ]  &&  echo "host ${1} is not ssh accessible , port ${SSH_PORT} is down" && exit 3
+    [ ${exit_status} -ne 0 ]  &&  Raise_Error 7
     ssh -q -p ${SSH_PORT}  -o PasswordAuthentication=no -o StrictHostKeyChecking=no ${User}@${1} sudo -vn &> /dev/null
     exit_status=$?
     if [ ${exit_status} -eq 1 ]
     then
-        echo "${User} on ${1} is not a sudoer or sudoer password required " && exit 3
+        Raise_Error 9
     elif [ ${exit_status} -eq 255 ]
     then
-        echo "${User} on ${1} Does not Authorized the public key for ssh login" && exit 3
+        Raise_Error 8
     elif [ ${exit_status} -ne 0 ]
     then
-        echo "sudo access with no password is not satisified on host ${1} user ${User} " && exit 3
+        Raise_Error 9
     fi
 }
 Validate_Install_Dependencies () {
@@ -165,8 +153,42 @@ Validate_Install_Dependencies () {
         which at || sudo  apt-get install -y -q at && sudo  systemctl start atd
     fi
 }
+#2- show and log error function
+Raise_Error () {
+    echo -en "\t\033[0;31mError\033[0m:\n\t"
+    case $1 in
+        1)
+            echo -e "\tsystem shell is not supported"
+            ;;
+        2)
+            echo -e "\tDuplicate Block Name in ${BlockName}" 
+            ;;
+        3)
+            echo -e "\tDuplicate Attribute Key in ${BlockName}=>${BlockAttributeName}" 
+            ;;
+        4)
+            echo -e "\tInvalid Attribute $2 Key in ${BlockName}=>${Mode} \n\t\t\t$3" 
+            ;;
+        5)
+            echo -e "\tAttribute $2 is Missing  in ${BlockName}\n\t\t\t$3"
+            ;;
+        6)
+            echo -e "\tinvalide Attribute $2 Value in ${BlockName}\n\t\t\t$3"
+            ;;
+        7)
+            echo -e "\thost unreachable via ssh ${BlockName}" 
+            ;;
+        8)
+            echo -e "\t${USER} Publick key is not authorized on  ${BlockName} " 
+            ;;
+        9)
+            echo -e  "\t${USER} is not sudoer nopasswd on  ${BlockName} " 
+            ;;
+    esac
+    exit $1
+}
 
-#2-Expand ips function and also exclude ips that are unreachable or is not root or sudoer nopasswd on it , logged
+#3-Expand ips function and also exclude ips that are unreachable or is not root or sudoer nopasswd on it , logged
 expand_ips() {   
     unset Expanded_IPs
     for IPRange in $(echo $1|cut -d ':' -f2 |tr ',' ' ')
@@ -196,7 +218,7 @@ expand_ips() {
     IPName=$(echo $1|cut -d ':' -f1)
     [ ${IPName} = ListenersIPs ] && Expanded_ListenersIPs=${Expanded_IPs} || Expanded_TestersIPs=${Expanded_IPs}
 }
-#3-Generate script for listeners/testers/report gathering
+#4-Generate script for listeners/testers/report gathering
 generate_listeners () {
         [ -z ${TCPPorts} ] || cat <<EOF > ${LOCALSAVE}/${BlockName}-Scripts/Listeners/${ListenerIP}-tcp.sh
         #!/bin/bash
@@ -366,11 +388,20 @@ EOF
 ######################Start######################
 #essential Validation 
 #validate linux shell
-[ $(uname -s) != "Linux" ] && echo "script does not support emulator,some expressions/commands will break" && exit 1
-#validate no duplicate blocknames
+[ $(uname -s) != "Linux" ] && Raise_Error 1
+#validate no duplicate BlockNames/BlockAttributesNames
 for BlockName in ${BlocksNames}
 do
-    [ $(echo "${BlocksNames}"|grep ${BlockName} | wc -l)  !=  1 ] && echo "Block Names can not be duplicated" && exit 1
+    [ $(echo "${BlocksNames}"|grep ${BlockName} | wc -l)  !=  1 ] && Raise_Error 2
+done
+for BlockName in ${BlocksNames}
+do
+    BlockContent=$(echo "${ConfFileContent}" | sed  -n  /${BlockName}/,/EOB/p | sed /EOB/d |sed /${BlockName}\/d)
+    BlockAttributesNames=$(echo "${BlockContent}"| grep ':'|cut -d':' -f1)
+    for BlockAttributeName in ${BlockAttributesNames}
+    do
+        [ $(echo "${BlockAttributesNames}"|grep ${BlockAttributeName} | wc -l)  !=  1 ] && Raise_Error 3
+    done
 done
 #make sure the current host have nc/at
 Validate_Install_Dependencies &> /dev/null
@@ -404,10 +435,8 @@ do
 						esac
 					    ;;
 					*)
-                        #should be warning/ignore instead
-						echo Not Allowed attribute name  ${BlockAttributeName} in conf file  ${ConfFileName} default block
-						exit 1
-					    ;;
+                        Raise_Error 4 ${BlockAttributeName} "can not be provided to the Default Block"
+					;;
 				esac
 			done
 		    ;;
@@ -456,9 +485,7 @@ do
 						esac
 				        ;;
 				    *)
-                        #should be warning ignore
-						echo Not Allowed attribute name  ${BlockAttributeName} in conf file  ${ConfFileName} block ${BlockName}
-						exit 2
+                        Raise_Error 4 ${BlockAttributeName} "invalide attribute name"
 					    ;;
 				esac
 			done
@@ -473,19 +500,19 @@ for BlockName in ${BlocksNames}
 do
 	if [ ${BlockName} != "Default" ]
 	then 
-		for Attribute in User Mode ListentDurationInMinutes
+		for BlockAttributeName in User Mode ListentDurationInMinutes
 		do
-			grep -q ${BlockName}_${Attribute} ${CONFPATH}
+			grep -q ${BlockName}_${BlockAttributeName} ${CONFPATH}
             exit_status=$? 
 			if [ ${exit_status} -ne 0 ]
 			then 
-				grep -q Default_${Attribute} ${CONFPATH}
+				grep -q Default_${BlockAttributeName} ${CONFPATH}
                 exit_status=$?
 				if [ ${exit_status} -eq 0 ]
 				then
-					echo "${BlockName}_${Attribute}:$(grep Default_${Attribute} ${CONFPATH}| cut -d':' -f2)" >> ${CONFPATH}
+					echo "${BlockName}_${BlockAttributeName}:$(grep Default_${BlockAttributeName} ${CONFPATH}| cut -d':' -f2)" >> ${CONFPATH}
                 else
-					echo "Invalid Configuration No ${Attribute} set in ${BlockName} and there is no default one" && exit 2
+                    Raise_Error 5  ${BlockAttributeName} "Have to be specified, there is no default value"
 				fi
 			fi
 		done
@@ -495,44 +522,18 @@ do
 		Mode=$(grep ${BlockName}_Mode ${CONFPATH}|cut -d':' -f2)
 		case ${Mode} in
 			bi)
-				egrep -q "${BlockName}_TestersIPs|${BlockName}_ListenersIPs" ${CONFPATH} &&	echo "Block ${BlockName} has Mode ${Mode} can not have either TestersIPs or ListenersIPs in the conf file"  && exit 2
-				grep -q "${BlockName}_IPs" ${CONFPATH}
-                exit_status=$?
-				if [ ${exit_status} -ne 0 ]
-				then
-					echo "Block ${BlockName} is in ${Mode} Mode with no IPs Attribute specified" &&	exit 2
-				fi
-				egrep -q  "${BlockName}_TCPPorts|${BlockName}_UDPPorts" ${CONFPATH}
-                exit_status=$?
-				if [ ${exit_status} -ne -0 ]
-				then
-					echo "${BlockName} has no tcp or udp ports to test" &&	exit 2
-				fi
+				egrep -q "${BlockName}_TestersIPs|${BlockName}_ListenersIPs" ${CONFPATH} &&	Raise_Error 5 "TestersIPs/ListenersIPs" "bi mode should not have TestersIPs/ListenersIPs"
+				grep -q "${BlockName}_IPs" ${CONFPATH} || Raise_Error 4 "IPs" "bi mode should have IPs"
+				egrep -q  "${BlockName}_TCPPorts|${BlockName}_UDPPorts" ${CONFPATH} || Raise_Error 4  "TCPPorts/UDPPorts" "at least one should be specified "
 			    ;;
 			uni)
-				grep -q "${BlockName}_IPs" ${CONFPATH} &&	echo Block ${BlockName} has Mode ${Mode} can not have IPs Attributes in the conf file && exit 2
-				grep -q "${BlockName}_TestersIPs" ${CONFPATH} 
-                exit_status=$?
-				if [ ${exit_status} -ne 0 ]
-				then 
-					echo "Block ${BlockName} is in ${Mode} Mode with no TestersIps Attribute specified" && exit 2
-				fi
-				grep -q "${BlockName}_ListenersIPs" ${CONFPATH}
-                exit_status=$?
-				if [ ${exit_status} -ne 0 ]
-				then 
-					echo "Block ${BlockName} is in ${Mode} Mode with no ListenersIPs Attribute specified" && exit 2
-				fi
-				egrep -q  "${BlockName}_TCPPorts|${BlockName}_UDPPorts" ${CONFPATH}
-                exit_status=$?
-				if [ ${exit_status} -ne 0 ]
-				then 
-					echo "${BlockName} has no tcp or udp ports to test" &&	exit 2
-				fi
+				grep -q "${BlockName}_IPs" ${CONFPATH} &&	Raise_Error 5 "IPs" "uni mode should not have IPs"
+				grep -q "${BlockName}_TestersIPs" ${CONFPATH}  || Raise_Error 4 "TestersIPs" "bi mode should have TestersIPs"
+				grep -q "${BlockName}_ListenersIPs" ${CONFPATH} || Raise_Error 4 "ListenersIPs" "bi mode should have IPs ListenersIPs"
+				egrep -q  "${BlockName}_TCPPorts|${BlockName}_UDPPorts" ${CONFPATH} || Raise_Error 4 "TCPPorts/UDPPorts" "at least one should be specified "
 			    ;;
 			*)
-				echo "No Valid Mode Specified ${Mode} for ${BlockName} Allowed Values are uni/bi"
-				exit 2
+                Raise_Error 4 ${Mode} "mode should be uni/bi"
 			    ;;
 		esac
 	fi
@@ -549,12 +550,12 @@ echo -e "5 - validate attributes values started"
 
 for BlockName in ${BlocksNames}
 do  
-    grep -q ${BlockName}_TCPPorts ${CONFPATH}	 	&&  TCPPorts=$( grep ${BlockName}_TCPPorts ${CONFPATH}|cut -d ':' -f2 ) 		&& Validate_Ports ${TCPPorts}
-    grep -q ${BlockName}_UDPPorts ${CONFPATH} 		&&  UDPPorts=$( grep ${BlockName}_UDPPorts ${CONFPATH}|cut -d ':' -f2 ) 		&& Validate_Ports ${UDPPorts}
-    grep -q ${BlockName}_IPs ${CONFPATH} 			&&  IPs=$(grep ${BlockName}_IPs ${CONFPATH}|cut -d ':' -f2) 					&& Validate_IPS ${IPs}
-    grep -q ${BlockName}_TestersIPs ${CONFPATH} 	&&  TestersIPs=$(grep ${BlockName}_TestersIPs ${CONFPATH}|cut -d ':' -f2)		&& Validate_IPS ${TestersIPs}
-    grep -q ${BlockName}_ListenersIPs ${CONFPATH} 	&&  ListenersIPs=$(grep ${BlockName}_ListenersIPs ${CONFPATH}|cut -d ':' -f2)	&& Validate_IPS ${ListenersIPs}
-    grep -q ${BlockName}_ListentDurationInMinutes ${CONFPATH} 	&& 	ListentDurationInMinutes=$(grep ${BlockName}_ListentDurationInMinutes ${CONFPATH}|cut -d ':' -f2) && Validate_ListentDurationInMinutes ${ListentDurationInMinutes}
+    grep -q ${BlockName}_TCPPorts ${CONFPATH}	 	&&  TCPPorts=$( grep ${BlockName}_TCPPorts ${CONFPATH}|cut -d ':' -f2 ) 		&& Validate_Ports ${TCPPorts} TCPPorts
+    grep -q ${BlockName}_UDPPorts ${CONFPATH} 		&&  UDPPorts=$( grep ${BlockName}_UDPPorts ${CONFPATH}|cut -d ':' -f2 ) 		&& Validate_Ports ${UDPPorts} UDPPorts
+    grep -q ${BlockName}_IPs ${CONFPATH} 			&&  IPs=$(grep ${BlockName}_IPs ${CONFPATH}|cut -d ':' -f2) 					&& Validate_IPS ${IPs}  IPs
+    grep -q ${BlockName}_TestersIPs ${CONFPATH} 	&&  TestersIPs=$(grep ${BlockName}_TestersIPs ${CONFPATH}|cut -d ':' -f2)		&& Validate_IPS ${TestersIPs} TestersIPs
+    grep -q ${BlockName}_ListenersIPs ${CONFPATH} 	&&  ListenersIPs=$(grep ${BlockName}_ListenersIPs ${CONFPATH}|cut -d ':' -f2)	&& Validate_IPS ${ListenersIPs} ListenersIPs
+    grep -q ${BlockName}_ListentDurationInMinutes ${CONFPATH} 	&& 	ListentDurationInMinutes=$(grep ${BlockName}_ListentDurationInMinutes ${CONFPATH}|cut -d ':' -f2) && Validate_ListentDurationInMinutes ${ListentDurationInMinutes} ListentDurationInMinutes
     if [ ${BlockName} != Default ]
     then 
         unset User  Mode IPs TestersIPs ListenersIPs Expanded_TestersIPs Expanded_ListenersIPs
