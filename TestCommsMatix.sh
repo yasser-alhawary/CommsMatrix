@@ -68,7 +68,7 @@ ConfFileName=$(echo ${1##*/}|tr -d ' '|sed 's/.conf//')
 BlocksNames=$(echo "${ConfFileContent}" |grep '\['|tr -d '['|tr -d ']') 
 ExecutionDate=$(date  +"%Y_%m_%d_%H_%M_%S")
 LOCALSAVE="${HOME}/CommsMatrix/${ConfFileName}-${ExecutionDate}"
-CONFPATH="${LOCALSAVE}/${ConfFileName}"
+CONFPATH="${LOCALSAVE}/${ConfFileName}.conf"
 SSH_PORT=22
 Listener_UDPScript="#!/usr/bin/python
 from socket import socket,AF_INET,SOCK_DGRAM,SO_REUSEADDR,SOL_SOCKET
@@ -102,36 +102,37 @@ while True:
 #1-Validation functions
 Validate_Ports() {
 	for Ports in $(echo $1|tr ',' ' ')
-		do
-			echo ${Ports}|grep -q '-'
-            exit_status=$?
-			if [ ${exit_status} -eq 0 ]
-			then
-				Start_Port=$(echo ${Ports}|cut -d '-' -f1 )
-				End_Port=$(echo ${Ports}|cut -d '-' -f2 )
-				if ! [[ ${Start_Port} == ?(-)+([0-9]) ]] 
-				then
-                    Raise_Error 7 $2 "Start port ${Start_Port} is not integer "
-				elif ! [[ ${End_Port} == ?(-)+([0-9]) ]] 
-                then
-                    Raise_Error 7 $2 "End port ${End_Port} is not integer "
-				elif [ ${Start_Port} -lt 0 -o ${Start_Port} -gt 65536 -o ${End_Port} -lt 0 -o ${End_Port} -gt 65536 ]
-				then
-					Raise_Error 7 $2 "Port Range is 0=>65536"
-				elif [ ${Start_Port} -gt ${End_Port} ]
-				then
-					Raise_Error 7 $2 "Start port ${Start_Port} is greater than End port ${End_Port}"
-				fi
-			else
-				if ! [[ ${Ports} == ?(-)+([0-9]) ]] 
-				then
-					Raise_Error 7 $2 "port ${Ports} is not intger"
-				elif [ ${Ports} -lt 0 -o ${Ports} -gt 65536 ]
-				then 
-					Raise_Error 7 $2 "Port Range is 0=>65536"
-				fi
-			fi
-		done
+    do
+        echo ${Ports}|grep -q '-'
+        exit_status=$?
+        if [ ${exit_status} -eq 0 ]
+        then
+            Start_Port=$(echo ${Ports}|cut -d '-' -f1 )
+            End_Port=$(echo ${Ports}|cut -d '-' -f2 )
+            if ! [[ ${Start_Port} == ?(-)+([0-9]) ]] 
+            then
+                Raise_Error 7 $2 "Start port ${Start_Port} is not integer "
+            elif ! [[ ${End_Port} == ?(-)+([0-9]) ]] 
+            then
+                Raise_Error 7 $2 "End port ${End_Port} is not integer "
+            elif [ ${Start_Port} -lt 0 -o ${Start_Port} -gt 65536 -o ${End_Port} -lt 0 -o ${End_Port} -gt 65536 ]
+            then
+                Raise_Error 7 $2 "Port Range is 0=>65536"
+            elif [ ${Start_Port} -gt ${End_Port} ]
+            then
+                Raise_Error 7 $2 "Start port ${Start_Port} is greater than End port ${End_Port}"|tee -a ${LOCALSAVE}/${ConfFileName}.log
+            fi
+        else
+            if ! [[ ${Ports} == ?(-)+([0-9]) ]] 
+            then
+                Raise_Error 7 $2 "port ${Ports} is not intger"|tee -a ${LOCALSAVE}/${ConfFileName}.log
+            elif [ ${Ports} -lt 0 -o ${Ports} -gt 65536 ]
+            then 
+                Raise_Error 7 $2 "Port Range is 0=>65536"|tee -a ${LOCALSAVE}/${ConfFileName}.log
+            fi
+        fi
+    done
+    echo -e "\t\tPort Range  ${Ports} : ok"|tee -a ${LOCALSAVE}/${ConfFileName}.log
 }
 Validate_IPS () {
 	for IPs in $(echo $1|tr ',' ' ')
@@ -154,68 +155,100 @@ Validate_IPS () {
             do
                 if ! [[ ${IP} =~  ^(([1-9]?[0-9]|1[0-9][0-9]|2([0-4][0-9]|5[0-5]))\.){3}([1-9]?[0-9]|1[0-9][0-9]|2([0-4][0-9]|5[0-5]))$ ]]
                 then
-                    Raise_Error 7 $2 "Ip ${IP} bad format"
+                    Raise_Error 7 $2 "Ip ${IP} bad format"|tee -a ${LOCALSAVE}/${ConfFileName}.log
                 fi
             done
             if [ ${Start_IP_OCT1} -ne ${End_IP_OCT1} -o ${Start_IP_OCT2} -ne ${End_IP_OCT2} -o ${Start_IP_OCT3} -ne ${End_IP_OCT3} ]
             then
-                Raise_Error 7 $2 "Script support /24 range only,specified value ${Start_IP}=>${End_IP}"
+                Raise_Error 7 $2 "Script support /24 range only,specified value ${Start_IP}=>${End_IP}"|tee -a ${LOCALSAVE}/${ConfFileName}.log
             elif [ ${Start_IP_OCT4} -gt ${End_IP_OCT4} ]
             then 
-                Raise_Error 7 $2 "Range ${Start_IP}=>${End_IP} Invalid"
+                Raise_Error 7 $2 "Range ${Start_IP}=>${End_IP} Invalid"|tee -a ${LOCALSAVE}/${ConfFileName}.log
             fi
 		else 
 			if ! [[ ${IPs} =~  ^(([1-9]?[0-9]|1[0-9][0-9]|2([0-4][0-9]|5[0-5]))\.){3}([1-9]?[0-9]|1[0-9][0-9]|2([0-4][0-9]|5[0-5]))$ ]]
 			then
-				Raise_Error 7 $2 "Ip ${IPs} bad format"
+				Raise_Error 7 $2 "Ip ${IPs} bad format"|tee -a ${LOCALSAVE}/${ConfFileName}.log
 			fi
 		fi
 	done
+    echo -e "\t\tIP Range ${1}: ok" |tee -a ${LOCALSAVE}/${ConfFileName}.log
 }
 Validate_ListentDurationInMinutes () {
 			if [[ $1 == ?(-)+([0-9]) ]] 
 			then
 				if [ $1 -le 0 ]
 				then
-                    Raise_Error 7 $2 "can not be zero or netgative"
+                    Raise_Error 7 $2 "can not be zero or netgative"|tee -a ${LOCALSAVE}/${ConfFileName}.log
+                else
+                    echo -e "\t\tListenDuration $1 : ok "
 				fi
 			else 
-                    Raise_Error 7 $2 "is not an integer"
+                    Raise_Error 7 $2 "is not an integer"|tee -a ${LOCALSAVE}/${ConfFileName}.log
 			fi
 }
 Validate_Access(){
+    echo -e "\t\t${1} Access/Autorization:"
     nc -w 2 -z ${1} ${SSH_PORT} 
     exit_status=$?
-    [ ${exit_status} -ne 0 ]  &&  Raise_Error 8 $1 "ssh to remote server is down"
+    if [ ${exit_status} -ne 0 ]  
+    then
+        Raise_Error 8 ${1} -e "\tssh@${1} : down" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+    else
+        echo -e -e "\t\t\tssh@${1} : ok" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+    fi
     ssh -q -p ${SSH_PORT}  -o PasswordAuthentication=no -o StrictHostKeyChecking=no ${User}@${1} sudo -vn &> /dev/null
     exit_status=$?
-    if [ ${exit_status} -eq 1 ]
+    if [ ${exit_status} -eq 0 ]
     then
-        Raise_Error 10 $1 "${User} is not sudoer with nopasswd on remote server"
+        echo -e "\t\t\t${1} pubkey/sudo no passwd : ok "|tee -a ${LOCALSAVE}/${ConfFileName}.log
+    elif [ ${exit_status} -eq 1 ]
+    then
+        Raise_Error 10 ${1} "\t\t:${User} is not sudoer nopasswd on remote server"|tee -a ${LOCALSAVE}/${ConfFileName}.log
     elif [ ${exit_status} -eq 255 ]
     then
-        Raise_Error 9 $1 "${User} on $1 not Authorize ${USER} PublicKey"
+        Raise_Error 9 ${1} "\t\t${1}:${USER} publickey is not authorized on ${User}@${1}"|tee -a ${LOCALSAVE}/${ConfFileName}.log
     elif [ ${exit_status} -ne 0 ]
     then
-        Raise_Error 10 $1 "General Access Error to $1"
+        Raise_Error 10 ${1} "\t\t$1:ssh geneeric  Error"|tee -a ${LOCALSAVE}/${ConfFileName}.log
     fi
 }
 Validate_Install_Dependencies () {
-    [ -e /bin/dash ] && diff /bin/sh /bin/dash &> /dev/null && ln -sf /bin/bash /bin/sh
-    which yum &> /dev/null
-    exit_status=$?
-    if [ $exit_status -eq 0 ]
+    [ $1 = localhost ] &&    echo -e "\t$1 Dependencies: " ||     echo -e "\t\t$1 Dependencies:"
+    if  [ -e /bin/dash ] 
     then
-        which nc || sudo  yum install -y -q  nc
-        which at || sudo  yum install -y -q at && sudo  systemctl start atd
+        diff /bin/sh /bin/dash &> /dev/null
+        exit_status=$?
+        if [ $? -eq 0]
+        then
+            sudo ln -sf /bin/bash /bin/sh && echo -e "\t\t\tatd service default shell changed from sh to bash on " |tee -a ${LOCALSAVE}/${ConfFileName}.log
+        else
+            echo -e "\t\t\tatd service default shell is bash no change needed" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+        fi
+    else
+            echo -e "\t\t\tatd service default shell is bash no change needed" |tee -a ${LOCALSAVE}/${ConfFileName}.log
     fi
-    which apt-get &> /dev/null
-    exit_status=$?
-    if [ $exit_status -eq 0 ]
-    then
-        which nc || sudo  apt-get install -y -q nc
-        which at || sudo  apt-get install -y -q at && sudo  systemctl start atd
-    fi
+    echo -e "\t\t\tchecking for netcat/atd packages" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+    for PackageManager in "yum" "apt-get" 
+    do
+        for Package in "nc" "at"
+        do
+            which ${PackageManager} &> /dev/null
+            exit_status=$?
+            if [ $exit_status -eq 0 ]
+            then
+                which ${Package} &> /dev/null 
+                exit_status=$?
+                if [ $? -eq 0 ]
+                then
+                    echo -e "\t\t\t\tpackage ${Package} is already installed" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+                else 
+                    sudo ${PackageManager} install -y -q  ${Package}  && echo -e "\t\t\t\t${Package} is not installed ,installing .." |tee -a ${LOCALSAVE}/${ConfFileName}.log
+                fi
+                [ ${Package} = "at" ] &&  sudo  systemctl start atd &> /dev/null
+            fi
+        done
+    done
 }
 
 
@@ -419,29 +452,52 @@ EOF
 ######################Start######################
 #essential Validation 
 #validate linux shell and conf file provided
-echo -e "[1] - Start Basic Validation"
-[ -z $1 ] && Raise Error 1
-[ $(uname -s) != "Linux" ] && Raise_Error 2
+mkdir -p ${LOCALSAVE}
+echo -e "[*] - Start Basic Validation"|tee -a ${LOCALSAVE}/${ConfFileName}.log
+if [ -z $1 ] 
+then 
+    Raise Error 1 |tee -a ${LOCALSAVE}/${ConfFileName}.log
+else 
+    echo -e "\tConfiguration File : ok"| tee -a ${LOCALSAVE}/${ConfFileName}.log
+fi
+if [ $(uname -s) != "Linux" ] 
+then 
+    Raise_Error 2 |tee -a ${LOCALSAVE}/${ConfFileName}.log
+else
+    echo -e "\tCurrent Shell : ok" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+fi
 #validate no duplicate BlockNames/BlockAttributesNames
+echo -e "\tChecking Duplicate Block Names:" |tee -a ${LOCALSAVE}/${ConfFileName}.log
 for BlockName in ${BlocksNames}
 do
-    [ $(echo "${BlocksNames}"|grep ${BlockName} | wc -l)  !=  1 ] && Raise_Error 3
+    if [ $(echo "${BlocksNames}"|grep ${BlockName} | wc -l)  !=  1 ] 
+    then
+        Raise_Error 3 |tee -a ${LOCALSAVE}/${ConfFileName}.log
+    else
+        echo -e "\t\t${BlockName} : ok" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+    fi
 done
+echo -e "\tChecking Duplicate Attributes Names:" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+
 for BlockName in ${BlocksNames}
 do
     BlockContent=$(echo "${ConfFileContent}" | sed  -n  /${BlockName}/,/EOB/p | sed /EOB/d |sed /${BlockName}\/d)
     BlockAttributesNames=$(echo "${BlockContent}"| grep ':'|cut -d':' -f1)
+    echo -e "\t\t${BlockName}:" |tee -a ${LOCALSAVE}/${ConfFileName}.log
     for BlockAttributeName in ${BlockAttributesNames}
     do
-        [ $(echo "${BlockAttributesNames}"|grep ${BlockAttributeName} | wc -l)  !=  1 ] && Raise_Error 4
+        if [ $(echo "${BlockAttributesNames}"|grep ${BlockAttributeName} | wc -l)  !=  1 ]
+        then
+            Raise_Error 4 |tee -a ${LOCALSAVE}/${ConfFileName}.log
+        else
+            echo -e "\t\t\t${BlockAttributeName} : ok" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+        fi
     done
 done
-echo -e "[2] - Basic Validation passed"
 #make sure the current host have nc/at
-Validate_Install_Dependencies &> /dev/null
+Validate_Install_Dependencies localhost
 #write to $CONFPATH
-echo -e "[3] - start writing a consistent configuration file"
-mkdir -p ${LOCALSAVE}
+echo -e "[*] - writing a consistent configuration file to \033[0;32m  ${CONFPATH} \033[0m " |tee -a ${LOCALSAVE}/${ConfFileName}.log
 echo -n > ${CONFPATH}
 for BlockName in ${BlocksNames}
 do
@@ -526,10 +582,9 @@ do
 		    ;;
 	esac
 done
-echo -e "[4] - configuration file created at\033[0;32m  ${CONFPATH} \033[0m "
 # Check If Blocks fulfilled with needed attributes
 # default value can fill missing mode/user/listen duration attributes
-echo -e "[5] - checks for blocks attributes keys started" 
+echo -e "[*] - validate blocks attributes keys:"  |tee -a ${LOCALSAVE}/${ConfFileName}.log
 for BlockName in ${BlocksNames}
 do
 	if [ ${BlockName} != "Default" ]
@@ -572,7 +627,6 @@ do
 		esac
 	fi
 done
-echo -e "[6] - attributes keys are valid" 
 #validate the attributes values
 #modes values  already validated in previous check
 #ListentDurationInMinutes  value must be an integer
@@ -580,16 +634,17 @@ echo -e "[6] - attributes keys are valid"
 #ports intger from 0 - 65536
 #validate remote ips ssh access and sudo no passwd privilege
 
-echo -e "[7] - validate attributes values started"
+echo -e "[*] - validate blocks attributes values" |tee -a ${LOCALSAVE}/${ConfFileName}.log
 
 for BlockName in ${BlocksNames}
 do  
+echo -e "\t${BlockName}:" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+    grep -q ${BlockName}_ListentDurationInMinutes ${CONFPATH} 	&& 	ListentDurationInMinutes=$(grep ${BlockName}_ListentDurationInMinutes ${CONFPATH}|cut -d ':' -f2) && Validate_ListentDurationInMinutes ${ListentDurationInMinutes} ListentDurationInMinutes
     grep -q ${BlockName}_TCPPorts ${CONFPATH}	 	&&  TCPPorts=$( grep ${BlockName}_TCPPorts ${CONFPATH}|cut -d ':' -f2 ) 		&& Validate_Ports ${TCPPorts} TCPPorts
     grep -q ${BlockName}_UDPPorts ${CONFPATH} 		&&  UDPPorts=$( grep ${BlockName}_UDPPorts ${CONFPATH}|cut -d ':' -f2 ) 		&& Validate_Ports ${UDPPorts} UDPPorts
     grep -q ${BlockName}_IPs ${CONFPATH} 			&&  IPs=$(grep ${BlockName}_IPs ${CONFPATH}|cut -d ':' -f2) 					&& Validate_IPS ${IPs}  IPs
     grep -q ${BlockName}_TestersIPs ${CONFPATH} 	&&  TestersIPs=$(grep ${BlockName}_TestersIPs ${CONFPATH}|cut -d ':' -f2)		&& Validate_IPS ${TestersIPs} TestersIPs
     grep -q ${BlockName}_ListenersIPs ${CONFPATH} 	&&  ListenersIPs=$(grep ${BlockName}_ListenersIPs ${CONFPATH}|cut -d ':' -f2)	&& Validate_IPS ${ListenersIPs} ListenersIPs
-    grep -q ${BlockName}_ListentDurationInMinutes ${CONFPATH} 	&& 	ListentDurationInMinutes=$(grep ${BlockName}_ListentDurationInMinutes ${CONFPATH}|cut -d ':' -f2) && Validate_ListentDurationInMinutes ${ListentDurationInMinutes} ListentDurationInMinutes
     if [ ${BlockName} != Default ]
     then 
         unset User  Mode IPs TestersIPs ListenersIPs Expanded_TestersIPs Expanded_ListenersIPs
@@ -604,12 +659,12 @@ do
             for ListenerIP in ${Expanded_ListenersIPs}
             do 
                 Validate_Access ${ListenerIP} 
-                 ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${ListenerIP} "$(typeset -f Validate_Install_Dependencies);   Validate_Install_Dependencies" &> /dev/null
+                 ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${ListenerIP} "$(typeset -f Validate_Install_Dependencies);   Validate_Install_Dependencies ${ListenerIP}" 
             done
             for TesterIP in ${Expanded_TestersIPs}
             do 
                 Validate_Access ${TesterIP}
-                ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${TesterIP} "$(typeset -f Validate_Install_Dependencies);   Validate_Install_Dependencies" &> /dev/null
+                ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${TesterIP} "$(typeset -f Validate_Install_Dependencies);   Validate_Install_Dependencies ${ListenerIP} "
 
             done
             ;;
@@ -618,21 +673,20 @@ do
             for ListenerIP in ${Expanded_ListenersIPs}
             do
                 Validate_Access ${ListenerIP}
-                ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${ListenerIP} "$(typeset -f Validate_Install_Dependencies);   Validate_Install_Dependencies" &> /dev/null
+                ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${ListenerIP} "$(typeset -f Validate_Install_Dependencies);   Validate_Install_Dependencies ww" &> /dev/null
 
             done
             ;;
         esac
     fi
 done
-echo -e "[8] - all attributes keys at \033[0;32m  ${CONFPATH} \033[0m have valid values"
-echo -e "[9] - start create/execute Testers and Listeners Scripts"
+echo -e "[*] - start create/execute Listeners/Testers"  |tee -a ${LOCALSAVE}/${ConfFileName}.log
 #create listeners/testers scripts and execute them remotly and create a local task to check if any report finished every 10 minutes and aggregate them
 for BlockName in ${BlocksNames}
 do
     if [ ${BlockName} != Default ]
     then 
-        echo -e "\tcreate/execute listener/testers scripts for \033[0;32m${BlockName}\033[0m Started"
+        echo -e "\t\033[0;32m${BlockName}\033[0m:" |tee -a ${LOCALSAVE}/${ConfFileName}.log
         unset User ListentDurationInMinutes Mode IPs TestersIPs ListenersIPs TCPPorts UDPPorts Expanded_TestersIPs Expanded_ListenersIPs
         mkdir -p ${LOCALSAVE}/${BlockName}-Scripts/{Listeners,Testers,ReportsGathering}/
         mkdir -p ${LOCALSAVE}/${BlockName}-Reports
@@ -658,14 +712,14 @@ do
         # take the listener spaced ips and generate the scripts
         for ListenerIP in ${Expanded_ListenersIPs}
         do 
-            echo -e "\t\tListener:\033[0;32m ${ListenerIP} \033[0m "
+            echo -e "\t\tListener:\033[0;32m ${ListenerIP}  ok \033[0m " |tee -a ${LOCALSAVE}/${ConfFileName}.log
             generate_listeners
             grep -q ${BlockName}_TCPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${ListenerIP} ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Listeners/${ListenerIP}-tcp.sh &> /dev/null
             grep -q ${BlockName}_UDPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${ListenerIP} ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Listeners/${ListenerIP}-udp.sh &> /dev/null
             for TesterIP  in ${Expanded_TestersIPs}
             do
                 [ ${TesterIP} = ${ListenerIP} ] && continue 
-                echo -e "\t\t\tTester:\033[0;32m ${TesterIP}=>${ListenerIP} \033[0m"
+                echo -e "\t\t\tTester:\033[0;32m${TesterIP}=>${ListenerIP} ok \033[0m" |tee -a ${LOCALSAVE}/${ConfFileName}.log
                 generate_testers
                 grep -q ${BlockName}_TCPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-tcp.sh &> /dev/null
                 grep -q ${BlockName}_UDPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-udp.sh &> /dev/null
@@ -673,16 +727,13 @@ do
                 [ -z ${UDPPorts} ] ||  echo  "${TesterIP}-${ListenerIP}-udp" >> ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ExpectedDoneList
             done
         done
-        echo -e "\tcreate/execute listener/testers scripts for \033[0;32m${BlockName}\033[0m  finished"
     fi
 done  
-echo -e "[10] - all testers/listeners scripts created/executed"
-echo -e "[11] - start reports gathering local tasks"       
 for BlockName in ${BlocksNames}
 do
     if [ ${BlockName} != Default ]
     then             
-        echo -e "\t\033[0;32m${BlockName}\033[0m reports gathering , check interval is $(expr ${ListentDurationInMinutes} \* 6) seconds"
+        echo -e "\t\033[0;32m${BlockName}\033[0m reports gathering ,check interval=$(expr ${ListentDurationInMinutes} \* 6) seconds,path=\033[0;32m ${LOCALSAVE}/${BlockName}-Reports/${TesterIP} \033[0m" |tee -a ${LOCALSAVE}/${ConfFileName}.log
         User=$(grep ${BlockName}_User ${CONFPATH}|cut -d':' -f2)
         ListentDurationInMinutes=$(grep ${BlockName}_ListentDurationInMinutes ${CONFPATH}|cut -d':' -f2)
         Mode=$(grep ${BlockName}_Mode ${CONFPATH}|cut -d':' -f2)
@@ -692,13 +743,11 @@ do
         expand_ips "TestersIPs:${TestersIPs}"
         for TesterIP  in ${Expanded_TestersIPs}
         do
-            echo -e "\t\t\033[0;32m ${TesterIP} \033[0mcreated"
             touch ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-{ExpectedDoneList,ActualDoneList}
             scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/${BlockName}-LocalReports/ActualDoneList ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ActualDoneList/ &> /dev/null
             Generate_Collect_Reports &> /dev/null
             at -f ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}.sh now &> /dev/null
         done
-        echo -e  "\t\033[0;32m${BlockName}\033[0m reports will be saved once finished in\033[0;32m ${LOCALSAVE}/${BlockName}-Reports/${TesterIP} \033[0m"
     fi
 done
-echo "[12] - all reports gathering tasks created"
+echo "[*] - all ok have a coffee" |tee -a ${LOCALSAVE}/${ConfFileName}.log
