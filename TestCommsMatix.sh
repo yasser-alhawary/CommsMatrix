@@ -407,11 +407,11 @@ EOF
 EOF
 }
 Generate_Collect_Reports () {
-cat <<EOF > ${LOCALSAVE}/${BlockName}-ReportsGathering/${TesterIP}.sh
-until [ "\$(sort -n ${LOCALSAVE}/${BlockName}-ReportsGathering/${TesterIP}-ExpectedDoneList)" = "\$(sort -n ${LOCALSAVE}/${BlockName}-ReportsGathering/${TesterIP}-ActualDoneList)" ]
+cat <<EOF > ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}.sh
+until [ "\$(sort -n ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ExpectedDoneList)" = "\$(sort -n ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ActualDoneList)" ]
 do
     sleep $(expr ${ListentDurationInMinutes} \* 6 ) 
-    scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/${BlockName}-LocalReports/ActualDoneList ${LOCALSAVE}/${BlockName}-ReportsGathering/${TesterIP}-ActualDoneList 
+    scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/${BlockName}-LocalReports/ActualDoneList ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ActualDoneList 
 done
 scp -rP ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/${BlockName}-LocalReports ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}
 EOF
@@ -419,7 +419,7 @@ EOF
 ######################Start######################
 #essential Validation 
 #validate linux shell and conf file provided
-echo -e "Start Basic Validation"
+echo -e "[1] - Start Basic Validation"
 [ -z $1 ] && Raise Error 1
 [ $(uname -s) != "Linux" ] && Raise_Error 2
 #validate no duplicate BlockNames/BlockAttributesNames
@@ -436,11 +436,11 @@ do
         [ $(echo "${BlockAttributesNames}"|grep ${BlockAttributeName} | wc -l)  !=  1 ] && Raise_Error 4
     done
 done
-echo -e "Basic Validation passed"
+echo -e "[2] - Basic Validation passed"
 #make sure the current host have nc/at
 Validate_Install_Dependencies &> /dev/null
 #write to $CONFPATH
-echo -e "1 - start writing a consistent configuration file"
+echo -e "[3] - start writing a consistent configuration file"
 mkdir -p ${LOCALSAVE}
 echo -n > ${CONFPATH}
 for BlockName in ${BlocksNames}
@@ -526,10 +526,10 @@ do
 		    ;;
 	esac
 done
-echo -e "2 - configuration file created at\033[0;32m  ${CONFPATH} \033[0m "
+echo -e "[4] - configuration file created at\033[0;32m  ${CONFPATH} \033[0m "
 # Check If Blocks fulfilled with needed attributes
 # default value can fill missing mode/user/listen duration attributes
-echo -e "3 - checks for blocks attributes keys started" 
+echo -e "[5] - checks for blocks attributes keys started" 
 for BlockName in ${BlocksNames}
 do
 	if [ ${BlockName} != "Default" ]
@@ -572,7 +572,7 @@ do
 		esac
 	fi
 done
-echo -e "4 - Conf File \033[0;32m  ${CONFPATH} \033[0m has a valid attributes keys" 
+echo -e "[6] - attributes keys are valid" 
 #validate the attributes values
 #modes values  already validated in previous check
 #ListentDurationInMinutes  value must be an integer
@@ -580,7 +580,7 @@ echo -e "4 - Conf File \033[0;32m  ${CONFPATH} \033[0m has a valid attributes ke
 #ports intger from 0 - 65536
 #validate remote ips ssh access and sudo no passwd privilege
 
-echo -e "5 - validate attributes values started"
+echo -e "[7] - validate attributes values started"
 
 for BlockName in ${BlocksNames}
 do  
@@ -625,16 +625,16 @@ do
         esac
     fi
 done
-echo -e "6 - all attributes keys at \033[0;32m  ${CONFPATH} \033[0m have valid values"
-echo -e "7 - start create/execute Testers and Listeners Scripts"
+echo -e "[8] - all attributes keys at \033[0;32m  ${CONFPATH} \033[0m have valid values"
+echo -e "[9] - start create/execute Testers and Listeners Scripts"
 #create listeners/testers scripts and execute them remotly and create a local task to check if any report finished every 10 minutes and aggregate them
 for BlockName in ${BlocksNames}
 do
     if [ ${BlockName} != Default ]
     then 
-        echo -e "\tcreate/execute listener/testers script for \033[0;32m${BlockName}\033[0m Started"
+        echo -e "\tcreate/execute listener/testers scripts for \033[0;32m${BlockName}\033[0m Started"
         unset User ListentDurationInMinutes Mode IPs TestersIPs ListenersIPs TCPPorts UDPPorts Expanded_TestersIPs Expanded_ListenersIPs
-        mkdir -p ${LOCALSAVE}/${BlockName}-Scripts/{Listeners,Testers}/
+        mkdir -p ${LOCALSAVE}/${BlockName}-Scripts/{Listeners,Testers,ReportsGathering}/
         mkdir -p ${LOCALSAVE}/${BlockName}-Reports
         User=$(grep ${BlockName}_User ${CONFPATH}|cut -d':' -f2)
         ListentDurationInMinutes=$(grep ${BlockName}_ListentDurationInMinutes ${CONFPATH}|cut -d':' -f2)
@@ -666,24 +666,23 @@ do
             do
                 [ ${TesterIP} = ${ListenerIP} ] && continue 
                 echo -e "\t\t\tTester:\033[0;32m ${TesterIP}=>${ListenerIP} \033[0m"
-                mkdir -p ${LOCALSAVE}/${BlockName}-ReportsGathering
                 generate_testers
                 grep -q ${BlockName}_TCPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-tcp.sh &> /dev/null
                 grep -q ${BlockName}_UDPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-udp.sh &> /dev/null
-                [ -z ${TCPPorts} ] ||  echo  "${TesterIP}-${ListenerIP}-tcp" >> ${LOCALSAVE}/${BlockName}-ReportsGathering/${TesterIP}-ExpectedDoneList
-                [ -z ${UDPPorts} ] ||  echo  "${TesterIP}-${ListenerIP}-udp" >> ${LOCALSAVE}/${BlockName}-ReportsGathering/${TesterIP}-ExpectedDoneList
+                [ -z ${TCPPorts} ] ||  echo  "${TesterIP}-${ListenerIP}-tcp" >> ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ExpectedDoneList
+                [ -z ${UDPPorts} ] ||  echo  "${TesterIP}-${ListenerIP}-udp" >> ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ExpectedDoneList
             done
         done
-        echo -e "\tcreate/execute listener/testers script for \033[0;32m${BlockName}\033[0m  finished"
+        echo -e "\tcreate/execute listener/testers scripts for \033[0;32m${BlockName}\033[0m  finished"
     fi
 done  
-echo -e "8 - all testers/listeners scripts created/executed"
-echo -e "9 - start reports gathering local tasks"       
+echo -e "[10] - all testers/listeners scripts created/executed"
+echo -e "[11] - start reports gathering local tasks"       
 for BlockName in ${BlocksNames}
 do
     if [ ${BlockName} != Default ]
     then             
-        echo -e " \033[0;32m${BlockName}\033[0m reports gathering , check interval is $(expr ${ListentDurationInMinutes} \* 6) seconds"
+        echo -e "\t\033[0;32m${BlockName}\033[0m reports gathering , check interval is $(expr ${ListentDurationInMinutes} \* 6) seconds"
         User=$(grep ${BlockName}_User ${CONFPATH}|cut -d':' -f2)
         ListentDurationInMinutes=$(grep ${BlockName}_ListentDurationInMinutes ${CONFPATH}|cut -d':' -f2)
         Mode=$(grep ${BlockName}_Mode ${CONFPATH}|cut -d':' -f2)
@@ -693,13 +692,13 @@ do
         expand_ips "TestersIPs:${TestersIPs}"
         for TesterIP  in ${Expanded_TestersIPs}
         do
-            echo -e "\t\t\033[0;32m  ${TesterIP} \033[0m created"
-            touch ${LOCALSAVE}/${BlockName}-ReportsGathering/${TesterIP}-{ExpectedDoneList,ActualDoneList}
-            scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/${BlockName}-LocalReports/ActualDoneList ${LOCALSAVE}/${BlockName}-ReportsGathering/${TesterIP}-ActualDoneList/ &> /dev/null
+            echo -e "\t\t\033[0;32m ${TesterIP} \033[0mcreated"
+            touch ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-{ExpectedDoneList,ActualDoneList}
+            scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/${BlockName}-LocalReports/ActualDoneList ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ActualDoneList/ &> /dev/null
             Generate_Collect_Reports &> /dev/null
-            at -f ${LOCALSAVE}/${BlockName}-ReportsGathering/${TesterIP}.sh now &> /dev/null
+            at -f ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}.sh now &> /dev/null
         done
-        echoe -e  "\033[0;32m${BlockName}\033[0m reports will be saved once finished in\033[0;32m ${LOCALSAVE}/${BlockName}-Scripts/Testers/ \033[0m"
+        echo -e  "\t\033[0;32m${BlockName}\033[0m reports will be saved once finished in\033[0;32m ${LOCALSAVE}/${BlockName}-Reports/${TesterIP} \033[0m"
     fi
 done
-echo "10 - all reports gathering tasks created"
+echo "[12] - all reports gathering tasks created"
