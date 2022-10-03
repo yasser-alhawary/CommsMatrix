@@ -60,10 +60,7 @@ Raise_Error () {
     esac
     exit $1
 }
-#essential Validation 
-#validate linux shell and conf file provided
-[ -z $1 ] && Raise Error 1
-[ $(uname -s) != "Linux" ] && Raise_Error 2
+
 ####
 unset ConfFileName ConfFileContent BlocksNames ExecutionDate LOCALSAVE CONFPATH
 ConfFileContent=$(egrep -v '^$|^#' $1|tr -d ' '|sed 's/\[/EOB\n\[/g'|sed '1d'|sed -e '$a\EOB')
@@ -194,22 +191,23 @@ Validate_Access(){
     exit_status=$?
     if [ ${exit_status} -eq 1 ]
     then
-        Raise_Error 20 $1 "{$User} is not sudoer with nopasswd on remote server"
+        Raise_Error 10 $1 "${User} is not sudoer with nopasswd on remote server"
     elif [ ${exit_status} -eq 255 ]
     then
         Raise_Error 9 $1 "${User} on $1 not Authorize ${USER} PublicKey"
     elif [ ${exit_status} -ne 0 ]
     then
-        Raise_Error 20 $1 "General Access Error to $1"
+        Raise_Error 10 $1 "General Access Error to $1"
     fi
 }
 Validate_Install_Dependencies () {
+    [ -e /bin/dash ] && diff /bin/sh /bin/dash &> /dev/null && ln -sf /bin/bash /bin/sh
     which yum &> /dev/null
     exit_status=$?
     if [ $exit_status -eq 0 ]
     then
         which nc || sudo  yum install -y -q  nc
-        which at || sudo  yum install -y -q at && sudo  systemctl start atd 
+        which at || sudo  yum install -y -q at && sudo  systemctl start atd
     fi
     which apt-get &> /dev/null
     exit_status=$?
@@ -419,7 +417,11 @@ scp -rP ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTES
 EOF
 }
 ######################Start######################
-
+#essential Validation 
+#validate linux shell and conf file provided
+echo -e "Start Basic Validation"
+[ -z $1 ] && Raise Error 1
+[ $(uname -s) != "Linux" ] && Raise_Error 2
 #validate no duplicate BlockNames/BlockAttributesNames
 for BlockName in ${BlocksNames}
 do
@@ -434,6 +436,7 @@ do
         [ $(echo "${BlockAttributesNames}"|grep ${BlockAttributeName} | wc -l)  !=  1 ] && Raise_Error 4
     done
 done
+echo -e "Basic Validation passed"
 #make sure the current host have nc/at
 Validate_Install_Dependencies &> /dev/null
 #write to $CONFPATH
@@ -629,7 +632,7 @@ for BlockName in ${BlocksNames}
 do
     if [ ${BlockName} != Default ]
     then 
-        echo -e "\tcreate/execute listener/testers script for \033[0;32m${BlockName}\033[0m:"
+        echo -e "\tcreate/execute listener/testers script for \033[0;32m${BlockName}\033[0m Started"
         unset User ListentDurationInMinutes Mode IPs TestersIPs ListenersIPs TCPPorts UDPPorts Expanded_TestersIPs Expanded_ListenersIPs
         mkdir -p ${LOCALSAVE}/${BlockName}-Scripts/{Listeners,Testers}/
         mkdir -p ${LOCALSAVE}/${BlockName}-Reports
@@ -661,19 +664,14 @@ do
             grep -q ${BlockName}_UDPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${ListenerIP} ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Listeners/${ListenerIP}-udp.sh &> /dev/null
             for TesterIP  in ${Expanded_TestersIPs}
             do
+                [ ${TesterIP} = ${ListenerIP} ] && continue 
                 echo -e "\t\t\tTester:\033[0;32m ${TesterIP}=>${ListenerIP} \033[0m"
                 mkdir -p ${LOCALSAVE}/${BlockName}-ReportsGathering
                 generate_testers
                 grep -q ${BlockName}_TCPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-tcp.sh &> /dev/null
                 grep -q ${BlockName}_UDPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-udp.sh &> /dev/null
-                if ! [ -z ${TCPPorts} ] 
-                then
-                    echo  "${TesterIP}-${ListenerIP}-tcp" >> ${LOCALSAVE}/${BlockName}-ReportsGathering/${TesterIP}-ExpectedDoneList
-                fi
-                if ! [ -z ${UDPPorts} ] 
-                then
-                    echo  "${TesterIP}-${ListenerIP}-udp" >> ${LOCALSAVE}/${BlockName}-ReportsGathering/${TesterIP}-ExpectedDoneList
-                fi
+                [ -z ${TCPPorts} ] ||  echo  "${TesterIP}-${ListenerIP}-tcp" >> ${LOCALSAVE}/${BlockName}-ReportsGathering/${TesterIP}-ExpectedDoneList
+                [ -z ${UDPPorts} ] ||  echo  "${TesterIP}-${ListenerIP}-udp" >> ${LOCALSAVE}/${BlockName}-ReportsGathering/${TesterIP}-ExpectedDoneList
             done
         done
         echo -e "\tcreate/execute listener/testers script for \033[0;32m${BlockName}\033[0m  finished"
@@ -695,12 +693,13 @@ do
         expand_ips "TestersIPs:${TestersIPs}"
         for TesterIP  in ${Expanded_TestersIPs}
         do
-            echo -e "\t\t\033[0;32m  ${TesterIP} \033[0m reports will be saved once finished in\033[0;32m ${LOCALSAVE}/${BlockName}-Scripts/Testers/ \033[0m"
+            echo -e "\t\t\033[0;32m  ${TesterIP} \033[0m created"
             touch ${LOCALSAVE}/${BlockName}-ReportsGathering/${TesterIP}-{ExpectedDoneList,ActualDoneList}
             scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/${BlockName}-LocalReports/ActualDoneList ${LOCALSAVE}/${BlockName}-ReportsGathering/${TesterIP}-ActualDoneList/ &> /dev/null
             Generate_Collect_Reports &> /dev/null
             at -f ${LOCALSAVE}/${BlockName}-ReportsGathering/${TesterIP}.sh now &> /dev/null
         done
+        echoe -e  "\033[0;32m${BlockName}\033[0m reports will be saved once finished in\033[0;32m ${LOCALSAVE}/${BlockName}-Scripts/Testers/ \033[0m"
     fi
 done
 echo "10 - all reports gathering tasks created"
