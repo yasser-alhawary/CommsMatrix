@@ -125,7 +125,7 @@ Validate_Ports() {
         else
             if ! [[ ${Ports} == ?(-)+([0-9]) ]] 
             then
-                Raise_Error 7 $2 "port ${Ports} is not intger"|tee -a ${LOCALSAVE}/${ConfFileName}.log
+                Raise_Error 7 $2 "port ${Ports} is not integer"|tee -a ${LOCALSAVE}/${ConfFileName}.log
             elif [ ${Ports} -lt 0 -o ${Ports} -gt 65536 ]
             then 
                 Raise_Error 7 $2 "Port Range is 0=>65536"|tee -a ${LOCALSAVE}/${ConfFileName}.log
@@ -179,7 +179,7 @@ Validate_ListentDurationInMinutes () {
 			then
 				if [ $1 -le 0 ]
 				then
-                    Raise_Error 7 $2 "can not be zero or netgative"|tee -a ${LOCALSAVE}/${ConfFileName}.log
+                    Raise_Error 7 $2 "can not be zero or negative"|tee -a ${LOCALSAVE}/${ConfFileName}.log
                 else
                     echo -e "\t\tListenDuration $1 : ok "
 				fi
@@ -188,7 +188,7 @@ Validate_ListentDurationInMinutes () {
 			fi
 }
 Validate_Access(){
-    echo -e "\t\t${1} Access/Autorization:" | tee -a ${LOCALSAVE}/${ConfFileName}.log
+    echo -e "\t\t${1} Access/Authorization:" | tee -a ${LOCALSAVE}/${ConfFileName}.log
     nc -w 2 -z ${1} ${SSH_PORT} 
     exit_status=$?
     if [ ${exit_status} -ne 0 ]  
@@ -210,7 +210,7 @@ Validate_Access(){
         Raise_Error 9 ${1} "\t\t${1}:${USER} publickey is not authorized on ${User}@${1}"|tee -a ${LOCALSAVE}/${ConfFileName}.log
     elif [ ${exit_status} -ne 0 ]
     then
-        Raise_Error 10 ${1} "\t\t${1}:ssh geneeric  Error"|tee -a ${LOCALSAVE}/${ConfFileName}.log
+        Raise_Error 10 ${1} "\t\t${1}:ssh generic  Error"|tee -a ${LOCALSAVE}/${ConfFileName}.log
     fi
 }
 Validate_Install_Dependencies () {
@@ -379,7 +379,7 @@ EOF
             then
                 echo -e "UDP-Listener.py is already exist on ${ListenerIP}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
             else
-                echo -e "UDP-Listener.py is not exist on ${ListenerIP} will be creted on /tmp/UDP-Listener.py " &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
+                echo -e "UDP-Listener.py is not exist on ${ListenerIP} will be created on /tmp/UDP-Listener.py " &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
                 echo "${Listener_UDPScript}" >> /tmp/UDP-Listener.py
             fi
             echo -e "Start Listening on udp Ports ${ListenerIP}:${UDPPorts} " &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
@@ -534,7 +534,7 @@ EOF
 }
 ######################Start######################
 #essential Validation 
-#validate linux shell and conf file provided
+#validate Linux shell and configuration file provided
 mkdir -p ${LOCALSAVE}
 echo -e "[*] - Start Basic Validation"|tee -a ${LOCALSAVE}/${ConfFileName}.log
 if [ -z $1 ] 
@@ -579,7 +579,7 @@ done
 #make sure the current host have nc/at
 Validate_Install_Dependencies localhost
 #write to $CONFPATH
-echo -e "[*] - create a well formated configuration file at : \033[0;32m  ${CONFPATH} \033[0m " |tee -a ${LOCALSAVE}/${ConfFileName}.log
+echo -e "[*] - create a well formatted configuration file at : \033[0;32m  ${CONFPATH} \033[0m " |tee -a ${LOCALSAVE}/${ConfFileName}.log
 echo -n > ${CONFPATH}
 for BlockName in ${BlocksNames}
 do
@@ -657,7 +657,7 @@ do
 						esac
 				        ;;
 				    *)
-                        Raise_Error 5 ${BlockAttributeName} "invalide attribute name"
+                        Raise_Error 5 ${BlockAttributeName} "invalid attribute name"
 					    ;;
 				esac
 			done
@@ -687,7 +687,7 @@ do
 				fi
 			fi
 		done
-# {tcp/udp}ports one of them must existe
+# {tcp/udp}ports one of them must exist
 # uni mode requires listeners/testers ips and bi require ips
         unset Mode
 		Mode=$(grep ${BlockName}_Mode ${CONFPATH}|cut -d':' -f2)
@@ -713,7 +713,7 @@ done
 #modes values  already validated in previous check
 #ListentDurationInMinutes  value must be an integer
 #ips match ips regex
-#ports intger from 0 - 65536
+#ports integer from 0 - 65536
 #validate remote ips ssh access and sudo no passwd privilege
 
 echo -e "[*] - validate blocks attributes values" |tee -a ${LOCALSAVE}/${ConfFileName}.log
@@ -755,7 +755,7 @@ echo -e "\t${BlockName}:" |tee -a ${LOCALSAVE}/${ConfFileName}.log
             for ListenerIP in ${Expanded_ListenersIPs}
             do
                 Validate_Access ${ListenerIP}
-                ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${ListenerIP} "$(typeset -f Validate_Install_Dependencies);   Validate_Install_Dependencies ww" &> /dev/null
+                ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${ListenerIP} "$(typeset -f Validate_Install_Dependencies);   Validate_Install_Dependencies ${ListenerIP}" &> /dev/null
 
             done
             ;;
@@ -763,7 +763,7 @@ echo -e "\t${BlockName}:" |tee -a ${LOCALSAVE}/${ConfFileName}.log
     fi
 done
 echo -e "[*] - create/execute Listeners/Testers scripts:"  |tee -a ${LOCALSAVE}/${ConfFileName}.log
-#create listeners/testers scripts and execute them remotly and create a local task to check if any report finished every 10 minutes and aggregate them
+#create listeners/testers scripts and execute them remotely and create a local task to check if any report finished every 10 minutes and aggregate them
 for BlockName in ${BlocksNames}
 do
     if [ ${BlockName} != Default ]
