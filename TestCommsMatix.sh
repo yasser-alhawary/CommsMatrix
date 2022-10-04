@@ -847,4 +847,6 @@ echo -e "[*] - check ${0} logs:  ${LOCALSAVE}/${ConfFileName}.log"
 echo -e "[*] - check Generated Scripts:${LOCALSAVE}/<BlockName>-Scripts"
 echo -e "[*] - check Gathered Reports:${LOCALSAVE}/<BlockName>-Reports"
 echo -e "[*] - check Gathered Logs:${LOCALSAVE}/<BlockName>-Logs"
+echo -e "[*] - check Local Logs:${LOCALSAVE}/<BlockName>-LocalLogs"
+echo -e "[*] - check Local Reports:${LOCALSAVE}/<BlockName>-LocalReports"
 echo -e "####################Start Report Gathering #######################" >> ${LOCALSAVE}/${ConfFileName}.log
