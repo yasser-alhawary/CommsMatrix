@@ -307,13 +307,6 @@ generate_listeners () {
         else
             echo -e "Firewall on ${ListenerIP} was down: no change needed" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
         fi
-        #if [ -e /tmp/TCP-Listener.py ] 
-        #then
-        #    echo -e "TCP-Listener.py is already exist on ${ListenerIP}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-        #else
-        #    echo -e "TCP-Listener.py is not exist on ${ListenerIP} will be creted on /tmp/TCP-Listener.py " &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-        #    echo "${Listener_TCPScript}" >> /tmp/TCP-Listener.py
-        #fi
         echo -e "Start Listening on tcp Ports ${ListenerIP}:${TCPPorts} " &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
         for Ports in \$(echo ${TCPPorts}|tr ',' ' ')
         do
@@ -321,7 +314,7 @@ generate_listeners () {
             exit_status=\$?
             if [ \${exit_status} -eq 0 ] 
             then
-                echo -e "start Listening to \{Ports} tcp range" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
+                echo -e "start Listening to \${Ports} tcp range" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
                 Start_Port=\$(echo \${Ports}|cut -d '-' -f1)
                 End_Port=\$(echo \${Ports}|cut -d '-' -f2)
                 for Port in \$(seq \${Start_Port} \${End_Port})
@@ -335,10 +328,7 @@ generate_listeners () {
                         unset PID
                         PID=\$( pgrep -la nc|grep "${ListenerIP} \${Port}"|cut -d' ' -f1)
                         while [ -z \${PID} ] ; do   PID=\$( pgrep -la nc|grep "${ListenerIP} \${Port}"|cut -d' ' -f1) ; done
-                        #echo "python /tmp/TCP-Listener.py ${ListenerIP} \${Port}"|at now
-                        #unset PID
-                        #PID=\$(pgrep -la python|grep "/tmp/TCP-Listener.py ${ListenerIP} \${Port}"|cut -d' ' -f1)
-                        #while [ -z \${PID} ] ; do  PID=\$(pgrep -la python|grep "/tmp/TCP-Listener.py ${ListenerIP} \${Port}"|cut -d' ' -f1) ; done
+                        
                         echo -e "port ${ListenerIP}:\${Port} tcp is running on \${PID} will be killed after ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
                         echo "kill -9 \${PID} "|at now +${ListentDurationInMinutes} minutes
                     else
@@ -354,14 +344,6 @@ generate_listeners () {
                     echo "nc -4kl ${ListenerIP} \${Ports}"|at now
                     PID=\$( pgrep -la nc|grep "${ListenerIP} \${Ports}"|cut -d' ' -f1)
                     while [ -z \${PID} ] ; do   PID=\$( pgrep -la nc|grep "${ListenerIP} \${Ports}"|cut -d' ' -f1) ; done
-                    echo "kill -9 \${PID} "|at now +${ListentDurationInMinutes} minutes
-                    #echo "python /tmp/TCP-Listener.py ${ListenerIP} \${Ports}"|at now
-                    #unset PID
-                    #PID=\$(pgrep -la python|grep "/tmp/TCP-Listener.py ${ListenerIP} \${Ports}"|cut -d' ' -f1)
-                    #while [ -z \${PID} ] 
-                    #do
-                    #    PID=\$(pgrep -la python|grep "/tmp/TCP-Listener.py ${ListenerIP} \${Ports}"|cut -d' ' -f1)
-                    #done
                     echo -e "port ${ListenerIP}:\${Ports} tcp is running on \${PID} will be killed after ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
                     echo "kill -9 \${PID} "|at now +${ListentDurationInMinutes} minutes
                 else
@@ -395,7 +377,7 @@ EOF
                 exit_status=\$?
                 if [ \${exit_status} -eq 0 ] 
                 then
-                    echo -e "start Listening to \{Ports} udp range" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
+                    echo -e "start Listening to \${Ports} udp range" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
                     Start_Port=\$(echo \${Ports}|cut -d '-' -f1)
                     End_Port=\$(echo \${Ports}|cut -d '-' -f2)
                     for Port in \$(seq \${Start_Port} \${End_Port})
