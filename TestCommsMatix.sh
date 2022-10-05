@@ -456,7 +456,7 @@ generate_testers () {
                                 for Port in \$(seq \${Start_Port} \${End_Port}) ; do echo -e "testing tcp ${TesterIP}=>${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log ;nc -vz -w 2 ${ListenerIP} \${Port}   &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt ;done
                                 break
                             else
-                                echo -e "last port on udp range \${Ports} still down sleep for \${retry} seconds" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log
+                                echo -e "last port on tcp range \${Ports} still down sleep for \${retry} seconds" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log
                                 sleep \${retry}
                             fi
                         done
@@ -525,9 +525,10 @@ do
     sleep $(expr ${ListentDurationInMinutes} \* 6 ) 
     echo -e "Logs will be gathered once all testers reports gathered sleep for $(expr ${ListentDurationInMinutes} \* 6 ) seconds  " >> ${LOCALSAVE}/${ConfFileName}.log
 done
-for host in ${ALLIPsUniq}
+for IP in ${ALLIPsUniq}
 do
-    scp -rP ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@\${host}:${REMOTESAVE}/${BlockName}-LocalLogs ${LOCALSAVE}/${BlockName}-Logs/\${host}
+    scp -rP ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@\${IP}:${REMOTESAVE}/${BlockName}-LocalLogs ${LOCALSAVE}/${BlockName}-Logs/\${IP}
+    echo -e "${BlockName}:\${IP} logs gathered saved to ${LOCALSAVE}/${BlockName}-Logs/" >>  ${LOCALSAVE}/${ConfFileName}.log
 done
 echo -e "all logs gathered saved to ${LOCALSAVE}/${BlockName}-Logs/" >>  ${LOCALSAVE}/${ConfFileName}.log
 EOF
@@ -741,12 +742,12 @@ echo -e "\t${BlockName}:" |tee -a ${LOCALSAVE}/${ConfFileName}.log
             for ListenerIP in ${Expanded_ListenersIPs}
             do 
                 Validate_Access ${ListenerIP} 
-                 ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${ListenerIP} "$(typeset -f Validate_Install_Dependencies);   Validate_Install_Dependencies ${ListenerIP}" 
+                 ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${ListenerIP} "$(typeset -f Validate_Install_Dependencies);  Validate_Install_Dependencies ${ListenerIP}" 
             done
             for TesterIP in ${Expanded_TestersIPs}
             do 
                 Validate_Access ${TesterIP}
-                ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${TesterIP} "$(typeset -f Validate_Install_Dependencies);   Validate_Install_Dependencies ${ListenerIP} "
+                ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${TesterIP} "$(typeset -f Validate_Install_Dependencies);  Validate_Install_Dependencies ${ListenerIP} "
 
             done
             ;;
@@ -755,7 +756,7 @@ echo -e "\t${BlockName}:" |tee -a ${LOCALSAVE}/${ConfFileName}.log
             for ListenerIP in ${Expanded_ListenersIPs}
             do
                 Validate_Access ${ListenerIP}
-                ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${ListenerIP} "$(typeset -f Validate_Install_Dependencies);   Validate_Install_Dependencies ${ListenerIP}" &> /dev/null
+                ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${ListenerIP} "$(typeset -f Validate_Install_Dependencies);  Validate_Install_Dependencies ${ListenerIP}"
 
             done
             ;;
