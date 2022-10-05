@@ -61,7 +61,12 @@ Raise_Error () {
     esac
     sudo kill -9 ${TOP_PID}
 }
-
+if [ -z $1 ] 
+then 
+    Raise_Error 1 |tee -a ${LOCALSAVE}/${ConfFileName}.log
+else 
+    echo -e "\tConfiguration File : ok"| tee -a ${LOCALSAVE}/${ConfFileName}.log
+fi
 ####
 unset ConfFileName ConfFileContent BlocksNames ExecutionDate LOCALSAVE CONFPATH
 ConfFileContent=$(egrep -v '^$|^#' $1|tr -d ' '|sed 's/\[/EOB\n\[/g'|sed '1d'|sed -e '$a\EOB')
@@ -133,7 +138,7 @@ Validate_Ports() {
             fi
         fi
     done
-    echo -e "\t\tPort Range  ${Ports} : ok"|tee -a ${LOCALSAVE}/${ConfFileName}.log
+    echo -e "\t\tPort Range  ${1} : ok"|tee -a ${LOCALSAVE}/${ConfFileName}.log
 }
 Validate_IPS () {
 	for IPs in $(echo $1|tr ',' ' ')
@@ -196,13 +201,13 @@ Validate_Access(){
     then
         Raise_Error 8 ${1} "\tssh@${1} : down" |tee -a ${LOCALSAVE}/${ConfFileName}.log
     else
-        echo -e -e "\t\t\tssh@${1} : ok" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+        echo -e -e "\t\t\tssh port : ok" |tee -a ${LOCALSAVE}/${ConfFileName}.log
     fi
     ssh -q -p ${SSH_PORT}  -o PasswordAuthentication=no -o StrictHostKeyChecking=no ${User}@${1} sudo -vn &> /dev/null
     exit_status=$?
     if [ ${exit_status} -eq 0 ]
     then
-        echo -e "\t\t\t${1} pubkey/sudo no passwd : ok "|tee -a ${LOCALSAVE}/${ConfFileName}.log 
+        echo -e "\t\t\tpubkey/sudo no passwd : ok "|tee -a ${LOCALSAVE}/${ConfFileName}.log 
     elif [ ${exit_status} -eq 1 ]
     then
         Raise_Error 10 ${1} "\t\t:${User} is not sudoer nopasswd on remote server"|tee -a ${LOCALSAVE}/${ConfFileName}.log
@@ -215,21 +220,21 @@ Validate_Access(){
     fi
 }
 Validate_Install_Dependencies () {
-    [ $1 = localhost ] &&    echo -e "\t${1} Dependencies: " |  tee -a ${LOCALSAVE}/${ConfFileName}.log ||     echo -e "\t\t${1} Dependencies:" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+    [ $1 = localhost ] &&    echo -e "\t${1} Dependencies: "  ||     echo -e "\t\t${1} Dependencies:"
     if  [ -e /bin/dash ] 
     then
         diff /bin/sh /bin/dash &> /dev/null
         exit_status=$?
         if [ $? -eq 0 ]
         then
-            sudo ln -sf /bin/bash /bin/sh && echo -e "\t\t\tatd service default shell changed from sh to bash on " |tee -a ${LOCALSAVE}/${ConfFileName}.log
+            sudo ln -sf /bin/bash /bin/sh && echo -e "\t\t\tatd service default shell changed from sh to bash on " 
         else
-            echo -e "\t\t\tatd service default shell is bash no change needed" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+            echo -e "\t\t\tatd service default shell is bash no change needed" 
         fi
     else
-            echo -e "\t\t\tatd service default shell is bash no change needed" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+            echo -e "\t\t\tatd service default shell is bash no change needed" 
     fi
-    echo -e "\t\t\tchecking for netcat/atd packages" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+    echo -e "\t\t\tchecking for netcat/atd packages" 
     for PackageManager in "yum" "apt-get" 
     do
         for Package in "nc" "at"
@@ -242,9 +247,9 @@ Validate_Install_Dependencies () {
                 exit_status=$?
                 if [ $? -eq 0 ]
                 then
-                    echo -e "\t\t\t\tpackage ${Package} is already installed" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+                    echo -e "\t\t\t\tpackage ${Package} is already installed" 
                 else 
-                    sudo ${PackageManager} install -y -q  ${Package}  && echo -e "\t\t\t\t${Package} is not installed ,installing .." |tee -a ${LOCALSAVE}/${ConfFileName}.log
+                    sudo ${PackageManager} install -y -q  ${Package}  && echo -e "\t\t\t\t${Package} is not installed ,installing .."
                 fi
                 [ ${Package} = "at" ] &&  sudo  systemctl start atd &> /dev/null
             fi
@@ -302,13 +307,13 @@ generate_listeners () {
         else
             echo -e "Firewall on ${ListenerIP} was down: no change needed" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
         fi
-        if [ -e /tmp/TCP-Listener.py ] 
-        then
-            echo -e "TCP-Listener.py is already exist on ${ListenerIP}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-        else
-            echo -e "TCP-Listener.py is not exist on ${ListenerIP} will be creted on /tmp/TCP-Listener.py " &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-            echo "${Listener_TCPScript}" >> /tmp/TCP-Listener.py
-        fi
+        #if [ -e /tmp/TCP-Listener.py ] 
+        #then
+        #    echo -e "TCP-Listener.py is already exist on ${ListenerIP}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
+        #else
+        #    echo -e "TCP-Listener.py is not exist on ${ListenerIP} will be creted on /tmp/TCP-Listener.py " &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
+        #    echo "${Listener_TCPScript}" >> /tmp/TCP-Listener.py
+        #fi
         echo -e "Start Listening on tcp Ports ${ListenerIP}:${TCPPorts} " &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
         for Ports in \$(echo ${TCPPorts}|tr ',' ' ')
         do
@@ -326,14 +331,14 @@ generate_listeners () {
                     if [ \${exit_status} -ne 0 ]
                     then
                         echo -e "tcp ${ListenerIP}:\${Port} was down , bringing it up for ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-                        #echo "nc -4kl ${ListenerIP} \${Port}"|at now
-                        #PID=\$( pgrep -la nc|grep "${ListenerIP} \${Port}"|cut -d' ' -f1)
-                        #while [ -z \${PID} ] ; do   PID=\$( pgrep -la nc|grep "${ListenerIP} \${Port}"|cut -d' ' -f1) ; done
-                        #echo "kill -9 \${PID} "|at now +${ListentDurationInMinutes} minutes
-                        echo "python /tmp/TCP-Listener.py ${ListenerIP} \${Port}"|at now
+                        echo "nc -4kl ${ListenerIP} \${Port}"|at now
                         unset PID
-                        PID=\$(pgrep -la python|grep "/tmp/TCP-Listener.py ${ListenerIP} \${Port}"|cut -d' ' -f1)
-                        while [ -z \${PID} ] ; do  PID=\$(pgrep -la python|grep "/tmp/TCP-Listener.py ${ListenerIP} \${Port}"|cut -d' ' -f1) ; done
+                        PID=\$( pgrep -la nc|grep "${ListenerIP} \${Port}"|cut -d' ' -f1)
+                        while [ -z \${PID} ] ; do   PID=\$( pgrep -la nc|grep "${ListenerIP} \${Port}"|cut -d' ' -f1) ; done
+                        #echo "python /tmp/TCP-Listener.py ${ListenerIP} \${Port}"|at now
+                        #unset PID
+                        #PID=\$(pgrep -la python|grep "/tmp/TCP-Listener.py ${ListenerIP} \${Port}"|cut -d' ' -f1)
+                        #while [ -z \${PID} ] ; do  PID=\$(pgrep -la python|grep "/tmp/TCP-Listener.py ${ListenerIP} \${Port}"|cut -d' ' -f1) ; done
                         echo -e "port ${ListenerIP}:\${Port} tcp is running on \${PID} will be killed after ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
                         echo "kill -9 \${PID} "|at now +${ListentDurationInMinutes} minutes
                     else
@@ -346,17 +351,17 @@ generate_listeners () {
                 if [ \${exit_status} -ne 0 ]
                 then
                     echo -e "tcp ${ListenerIP}:\${Ports} was down , bringing it up for ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-                    #echo "nc -4kl ${ListenerIP} \${Ports}"|at now
-                    #PID=\$( pgrep -la nc|grep "${ListenerIP} \${Ports}"|cut -d' ' -f1)
-                    #while [ -z \${PID} ] ; do   PID=\$( pgrep -la nc|grep "${ListenerIP} \${Ports}"|cut -d' ' -f1) ; done
-                    #echo "kill -9 \${PID} "|at now +${ListentDurationInMinutes} minutes
-                    echo "python /tmp/TCP-Listener.py ${ListenerIP} \${Ports}"|at now
-                    unset PID
-                    PID=\$(pgrep -la python|grep "/tmp/TCP-Listener.py ${ListenerIP} \${Ports}"|cut -d' ' -f1)
-                    while [ -z \${PID} ] 
-                    do
-                        PID=\$(pgrep -la python|grep "/tmp/TCP-Listener.py ${ListenerIP} \${Ports}"|cut -d' ' -f1)
-                    done
+                    echo "nc -4kl ${ListenerIP} \${Ports}"|at now
+                    PID=\$( pgrep -la nc|grep "${ListenerIP} \${Ports}"|cut -d' ' -f1)
+                    while [ -z \${PID} ] ; do   PID=\$( pgrep -la nc|grep "${ListenerIP} \${Ports}"|cut -d' ' -f1) ; done
+                    echo "kill -9 \${PID} "|at now +${ListentDurationInMinutes} minutes
+                    #echo "python /tmp/TCP-Listener.py ${ListenerIP} \${Ports}"|at now
+                    #unset PID
+                    #PID=\$(pgrep -la python|grep "/tmp/TCP-Listener.py ${ListenerIP} \${Ports}"|cut -d' ' -f1)
+                    #while [ -z \${PID} ] 
+                    #do
+                    #    PID=\$(pgrep -la python|grep "/tmp/TCP-Listener.py ${ListenerIP} \${Ports}"|cut -d' ' -f1)
+                    #done
                     echo -e "port ${ListenerIP}:\${Ports} tcp is running on \${PID} will be killed after ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
                     echo "kill -9 \${PID} "|at now +${ListentDurationInMinutes} minutes
                 else
@@ -437,6 +442,7 @@ generate_testers () {
                 #!/bin/bash
                 mkdir -p ${REMOTESAVE}/${BlockName}-{LocalReports,LocalLogs}
                 touch ${REMOTESAVE}/${BlockName}-LocalLogs/ActualDoneList
+                Total=0;Success=0;Failure=0
                 echo -e "Start Testing  tcp on ${ListenerIP}:${TCPPorts}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log
                 for Ports in \$(echo ${TCPPorts}|tr ',' ' ')
                 do
@@ -453,23 +459,29 @@ generate_testers () {
                             exit_status=\$?
                             if [ \${exit_status} -eq 0 ]
                             then 
+                                ((Total++));((Success++))
                                 echo -e "last port in range tcp range \${Start_Port}=>\${End_Port} is up , start testing the whole range"     &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log
                                 for Port in \$(seq \${Start_Port} \${End_Port})
-                                do 
-                                    echo -e "testing tcp ${TesterIP}=>${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log ;nc -vz -w 2 ${ListenerIP} \${Port}   &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt 
+                                do
+                                    ((Total++))
+                                    echo -e "testing tcp ${TesterIP}=>${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log 
+                                    nc -vz -w 2 ${ListenerIP} \${Port} && ((Success++)) || ((Failure++))  &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt 
                                 done
                                 break
                             else
+                                ((Total++));((Failure++))
                                 echo -e "last port on tcp range \${Ports} still down sleep for \${retry} seconds" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log
                                 sleep \${retry}
                             fi
                         done
                         [ \${retry} -eq ${ListentDurationInMinutes} ] && echo -e "last Port in tcp port range \${Ports} is down for long time , giving up the whole range" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log
                     else
+                        ((Total++))
                         echo -e "testing tcp ${TesterIP}=>${ListenerIP}:\${Ports}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log
-                        nc -vz -w 2 ${ListenerIP} \${Ports}   &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt
+                        nc -vz -w 2 ${ListenerIP} \${Ports} && ((Success++)) || ((Failure++))   &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt
                     fi
                 done
+                echo -e "BlockName,TesterIP,ListenerIP,Protocol,Total,Success,Failure\n${BlockName},${TesterIP},${ListenerIP},tcp,\${Total},\${Success},\${Failure}" >> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log
                 echo  "${TesterIP}-${ListenerIP}-tcp" >> ${REMOTESAVE}/${BlockName}-LocalLogs/ActualDoneList
 EOF
             [ -z ${UDPPorts} ] || cat <<EOF > ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-udp.sh
@@ -492,24 +504,31 @@ EOF
                         exit_status=\$?
                         if [ \${exit_status} -eq 0 ]
                         then
+                            ((Total++));((Success++))
                             echo -e "last port in range \${Ports} is up , start testing the whole range"     &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log
                             for Port in \$(seq \${Start_Port} \${End_Port}) 
                             do 
-                                echo -e "testing udp ${TesterIP}=>${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log ;nc -vuz -w 2 ${ListenerIP} \${Port}   &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt
+                                ((Total++))
+                                echo -e "testing udp ${TesterIP}=>${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log 
+                                nc -vuz -w 2 ${ListenerIP} \${Port}   && ((Success++)) || ((Failure++))  &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt
                             done
                             break
                         else
+                            ((Total++));((Failure++))
                             echo -e "last port on udp range \${Ports} still down sleep for \${retry} seconds" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log
                             sleep \$retry
                         fi
                     done
                     [ \${retry} -eq ${ListentDurationInMinutes} ] && echo -e "last Port in udp port range \${Ports} is down for long time , giving up the whole range" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log
                 else
+                    ((Total++))
                     echo "Test udp ${TesterIP}=>${ListenerIP}:\${Ports}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log
-                    nc -vuz -w 2 ${ListenerIP} \${Ports}   &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt
+                    nc -vuz -w 2 ${ListenerIP} \${Ports}  && ((Success++)) || ((Failure++))   &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt
                 fi
             done
             echo  "${TesterIP}-${ListenerIP}-udp" >> ${REMOTESAVE}/${BlockName}-LocalLogs/ActualDoneList
+            echo -e "BlockName,TesterIP,ListenerIP,Protocol,Total,Success,Failure\n${BlockName},${TesterIP},${ListenerIP},udp,\${Total},\${Success},\${Failure}" >> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log
+
 EOF
 }
 Generate_Collect_Reports () {
@@ -545,12 +564,7 @@ EOF
 #validate Linux shell and configuration file provided
 mkdir -p ${LOCALSAVE}
 echo -e "[*] - Start Basic Validation"|tee -a ${LOCALSAVE}/${ConfFileName}.log
-if [ -z $1 ] 
-then 
-    Raise Error 1 |tee -a ${LOCALSAVE}/${ConfFileName}.log
-else 
-    echo -e "\tConfiguration File : ok"| tee -a ${LOCALSAVE}/${ConfFileName}.log
-fi
+
 if [ $(uname -s) != "Linux" ] 
 then 
     Raise_Error 2 |tee -a ${LOCALSAVE}/${ConfFileName}.log
@@ -583,7 +597,7 @@ do
     echo -e "\t\t${BlockName} Attributes : ok" |tee -a ${LOCALSAVE}/${ConfFileName}.log
 done
 #make sure the current host have nc/at
-Validate_Install_Dependencies localhost
+Validate_Install_Dependencies localhost |tee -a ${LOCALSAVE}/${ConfFileName}.log
 #write to $CONFPATH
 echo -e "[*] - create a well formatted configuration file at : \033[0;32m  ${CONFPATH} \033[0m " |tee -a ${LOCALSAVE}/${ConfFileName}.log
 echo -n > ${CONFPATH}
@@ -726,7 +740,7 @@ echo -e "[*] - validate blocks attributes values" |tee -a ${LOCALSAVE}/${ConfFil
 
 for BlockName in ${BlocksNames}
 do  
-echo -e "\t${BlockName}:" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+    echo -e "\t${BlockName}:" |tee -a ${LOCALSAVE}/${ConfFileName}.log
     grep -q ${BlockName}_ListentDurationInMinutes ${CONFPATH} 	&& 	ListentDurationInMinutes=$(grep ${BlockName}_ListentDurationInMinutes ${CONFPATH}|cut -d ':' -f2) && Validate_ListentDurationInMinutes ${ListentDurationInMinutes} ListentDurationInMinutes
     grep -q ${BlockName}_TCPPorts ${CONFPATH}	 	&&  TCPPorts=$( grep ${BlockName}_TCPPorts ${CONFPATH}|cut -d ':' -f2 ) 		&& Validate_Ports ${TCPPorts} TCPPorts
     grep -q ${BlockName}_UDPPorts ${CONFPATH} 		&&  UDPPorts=$( grep ${BlockName}_UDPPorts ${CONFPATH}|cut -d ':' -f2 ) 		&& Validate_Ports ${UDPPorts} UDPPorts
@@ -740,32 +754,14 @@ echo -e "\t${BlockName}:" |tee -a ${LOCALSAVE}/${ConfFileName}.log
         Mode=$(grep ${BlockName}_Mode ${CONFPATH}|cut -d':' -f2)
         [ ${Mode} = bi ] && ListenersIPs=$(grep ${BlockName}_IPs ${CONFPATH}|cut -d':' -f2) || ListenersIPs=$(grep ${BlockName}_ListenersIPs ${CONFPATH}|cut -d':' -f2)
         [ ${Mode} = bi ] && TestersIPs=$(grep ${BlockName}_IPs ${CONFPATH}|cut -d':' -f2) || TestersIPs=$(grep ${BlockName}_TestersIPs ${CONFPATH}|cut -d':' -f2)
-        case ${Mode} in
-        uni)
-            expand_ips "ListenersIPs:${ListenersIPs}"
-            expand_ips "TestersIPs:${TestersIPs}"
-            for ListenerIP in ${Expanded_ListenersIPs}
-            do 
-                Validate_Access ${ListenerIP} 
-                 ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${ListenerIP} "$(typeset -f Validate_Install_Dependencies);  Validate_Install_Dependencies ${ListenerIP}" 
-            done
-            for TesterIP in ${Expanded_TestersIPs}
-            do 
-                Validate_Access ${TesterIP}
-                ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${TesterIP} "$(typeset -f Validate_Install_Dependencies);  Validate_Install_Dependencies ${ListenerIP} "
-
-            done
-            ;;
-        bi)
-            expand_ips "ListenersIPs:${ListenersIPs}"
-            for ListenerIP in ${Expanded_ListenersIPs}
-            do
-                Validate_Access ${ListenerIP}
-                ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${ListenerIP} "$(typeset -f Validate_Install_Dependencies);  Validate_Install_Dependencies ${ListenerIP}"
-
-            done
-            ;;
-        esac
+        expand_ips "TestersIPs:${TestersIPs}"
+        expand_ips "ListenersIPs:${ListenersIPs}"
+        ALLIPsUniq=$(echo "${Expanded_TestersIPs} ${Expanded_ListenersIPs}"|tr ' ' '\n'|sort|uniq|tr '\n' ' ')
+        for IP in ${ALLIPsUniq}
+        do
+                Validate_Access ${IP}
+                ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${IP} "$(typeset -f Validate_Install_Dependencies);  Validate_Install_Dependencies ${IP}" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+        done
     fi
 done
 echo -e "[*] - create/execute Listeners/Testers scripts:"  |tee -a ${LOCALSAVE}/${ConfFileName}.log
