@@ -1,4 +1,5 @@
 #!/bin/bash
+export TOP_PID=$$
 CONF_EXAMPLE="
 [Default]
 Mode: uni
@@ -25,10 +26,10 @@ IPs:
 192.168.1.50-192.168.1.55"
 # log error function
 Raise_Error () {
-    echo -en "\t\033[0;31mError\033[0m:\n\t"
+    echo -en "\t\033[0;31mError\033[0m:\t"
     case $1 in
         1)
-            echo "configuration file not specified .. file format as following\n#####${CONF_EXAMPLE}\n#####"
+            echo -e "configuration file not specified .. file format as following\n#####${CONF_EXAMPLE}\n#####"
             ;;
         2)
             echo -e "\tSystem shell is not supported"
@@ -58,7 +59,7 @@ Raise_Error () {
             echo -e  "\tLack of Authorization  on $2 ${BlockName}\n\t\t\t$3" 
             ;;
     esac
-    exit $1
+    sudo kill -9 ${TOP_PID}
 }
 
 ####
@@ -193,7 +194,7 @@ Validate_Access(){
     exit_status=$?
     if [ ${exit_status} -ne 0 ]  
     then
-        Raise_Error 8 ${1} -e "\tssh@${1} : down" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+        Raise_Error 8 ${1} "\tssh@${1} : down" |tee -a ${LOCALSAVE}/${ConfFileName}.log
     else
         echo -e -e "\t\t\tssh@${1} : ok" |tee -a ${LOCALSAVE}/${ConfFileName}.log
     fi
@@ -453,7 +454,10 @@ generate_testers () {
                             if [ \${exit_status} -eq 0 ]
                             then 
                                 echo -e "last port in range tcp range \${Start_Port}=>\${End_Port} is up , start testing the whole range"     &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log
-                                for Port in \$(seq \${Start_Port} \${End_Port}) ; do echo -e "testing tcp ${TesterIP}=>${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log ;nc -vz -w 2 ${ListenerIP} \${Port}   &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt ;done
+                                for Port in \$(seq \${Start_Port} \${End_Port})
+                                do 
+                                    echo -e "testing tcp ${TesterIP}=>${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log ;nc -vz -w 2 ${ListenerIP} \${Port}   &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt 
+                                done
                                 break
                             else
                                 echo -e "last port on tcp range \${Ports} still down sleep for \${retry} seconds" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log
@@ -489,7 +493,10 @@ EOF
                         if [ \${exit_status} -eq 0 ]
                         then
                             echo -e "last port in range \${Ports} is up , start testing the whole range"     &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log
-                            for Port in \$(seq \${Start_Port} \${End_Port}) ;do echo -e "testing udp ${TesterIP}=>${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log ;nc -vuz -w 2 ${ListenerIP} \${Port}   &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt ; done
+                            for Port in \$(seq \${Start_Port} \${End_Port}) 
+                            do 
+                                echo -e "testing udp ${TesterIP}=>${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log ;nc -vuz -w 2 ${ListenerIP} \${Port}   &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt
+                            done
                             break
                         else
                             echo -e "last port on udp range \${Ports} still down sleep for \${retry} seconds" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log
@@ -566,16 +573,14 @@ for BlockName in ${BlocksNames}
 do
     BlockContent=$(echo "${ConfFileContent}" | sed  -n  /${BlockName}/,/EOB/p | sed /EOB/d |sed /${BlockName}\/d)
     BlockAttributesNames=$(echo "${BlockContent}"| grep ':'|cut -d':' -f1)
-    echo -e "\t\t${BlockName}:" |tee -a ${LOCALSAVE}/${ConfFileName}.log
     for BlockAttributeName in ${BlockAttributesNames}
     do
         if [ $(echo "${BlockAttributesNames}"|grep ${BlockAttributeName} | wc -l)  !=  1 ]
         then
             Raise_Error 4 |tee -a ${LOCALSAVE}/${ConfFileName}.log
-        else
-            echo -e "\t\t\t${BlockAttributeName} : ok" |tee -a ${LOCALSAVE}/${ConfFileName}.log
         fi
     done
+    echo -e "\t\t${BlockName} Attributes : ok" |tee -a ${LOCALSAVE}/${ConfFileName}.log
 done
 #make sure the current host have nc/at
 Validate_Install_Dependencies localhost
