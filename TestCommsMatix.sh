@@ -490,7 +490,7 @@ generate_testers () {
                 #!/bin/bash
                 mkdir -p ${REMOTESAVE}/${BlockName}-{LocalReports,LocalLogs}
                 touch ${REMOTESAVE}/${BlockName}-LocalLogs/ActualDoneList
-                Total=0;Success=0;Failure=-1
+                Total=0;Success=0
                 echo -e "Start Testing  tcp on ${ListenerIP}:${TCPPorts}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log
                 for Ports in \$(echo ${TCPPorts}|tr ',' ' ')
                 do
@@ -512,7 +512,7 @@ generate_testers () {
                                 do
                                     ((Total++))
                                     echo -e "testing tcp ${TesterIP}=>${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log 
-                                    nc -vz -w 2 ${ListenerIP} \${Port} &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt  && ((Success++)) || ((Failure++)) 
+                                    nc -vz -w 2 ${ListenerIP} \${Port} &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt  && ((Success++))
                                 done
                                 break
                             else
@@ -527,22 +527,22 @@ generate_testers () {
                             do
                                 ((Total++))
                                 echo -e "testing tcp ${TesterIP}=>${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log 
-                                nc -vz -w 2 ${ListenerIP} \${Port} &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt  && ((Success++)) || ((Failure++))   
+                                nc -vz -w 2 ${ListenerIP} \${Port} &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt  && ((Success++))    
                             done
                         fi
                     else
                         ((Total++))
-                        nc -vz -w 2 ${ListenerIP} \${Ports}  &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt && ((Success++)) || ((Failure++))
+                        nc -vz -w 2 ${ListenerIP} \${Ports}  &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt && ((Success++)) 
                     fi
                 done
-                echo -e "BlockName,TesterIP,ListenerIP,Protocol,Total,Success,Failure\n${BlockName},${TesterIP},${ListenerIP},tcp,\${Total},\${Success},\${Failure}" >> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log
+                echo -e "BlockName,TesterIP,ListenerIP,Protocol,Total,Success,Failure\n${BlockName},${TesterIP},${ListenerIP},tcp,\${Total},\${Success},\$(expr \${Total} - \${Success} )" >> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log
                 echo  "${TesterIP}-${ListenerIP}-tcp" >> ${REMOTESAVE}/${BlockName}-LocalLogs/ActualDoneList
 EOF
             [ -z ${UDPPorts} ] || cat <<EOF > ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-udp.sh
             #!/bin/bash
             mkdir -p ${REMOTESAVE}/${BlockName}-{LocalReports,LocalLogs}
             touch ${REMOTESAVE}/${BlockName}-LocalLogs/ActualDoneList
-            Total=0;Success=0;Failure=-1
+            Total=0;Success=0
             echo -e "Start Testing  udp on ${ListenerIP}:${UDPPorts}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log
             for Ports in \$(echo ${UDPPorts}|tr ',' ' ')
             do
@@ -564,7 +564,7 @@ EOF
                             do 
                                 ((Total++))
                                 echo -e "testing udp ${TesterIP}=>${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log 
-                                nc -vuz -w 2 ${ListenerIP} \${Port}  &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt  && ((Success++)) || ((Failure++))
+                                nc -vuz -w 2 ${ListenerIP} \${Port}  &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt  && ((Success++))
                             done
                             break
                         else
@@ -579,17 +579,17 @@ EOF
                         do
                             ((Total++))
                             echo -e "testing tcp ${TesterIP}=>${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log 
-                            nc -vz -w 2 ${ListenerIP} \${Port} &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt && ((Success++)) || ((Failure++))   
+                            nc -vz -w 2 ${ListenerIP} \${Port} &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt && ((Success++))   
                         done
                         fi
                 else
                     ((Total++))
                     echo "Test udp ${TesterIP}=>${ListenerIP}:\${Ports}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log
-                    nc -vuz -w 2 ${ListenerIP} \${Ports}  &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt  && ((Success++)) || ((Failure++))
+                    nc -vuz -w 2 ${ListenerIP} \${Ports}  &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt  && ((Success++)) 
                 fi
             done
             echo  "${TesterIP}-${ListenerIP}-udp" >> ${REMOTESAVE}/${BlockName}-LocalLogs/ActualDoneList
-            echo -e "BlockName,TesterIP,ListenerIP,Protocol,Total,Success,Failure\n${BlockName},${TesterIP},${ListenerIP},udp,\${Total},\${Success},\${Failure}" >> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log
+            echo -e "BlockName,TesterIP,ListenerIP,Protocol,Total,Success,Failure\n${BlockName},${TesterIP},${ListenerIP},udp,\${Total},\${Success},\$(expr \${Total} - \${Success} )" >> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log
 
 EOF
 }
@@ -618,7 +618,7 @@ do
     scp -rP ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@\${IP}:${REMOTESAVE}/${BlockName}-LocalLogs ${LOCALSAVE}/${BlockName}-Logs/\${IP}
     echo -e "${BlockName}:\${IP} logs gathered saved to ${LOCALSAVE}/${BlockName}-Logs/" >>  ${LOCALSAVE}/${ConfFileName}.log
 done
-echo -e "all logs gathered saved to ${LOCALSAVE}/${BlockName}-Logs/" >>  ${LOCALSAVE}/${ConfFileName}.log
+echo -e "all ${BlockName} logs gathered saved to ${LOCALSAVE}/${BlockName}-Logs/" >>  ${LOCALSAVE}/${ConfFileName}.log
 ###generate stats
 echo -e "${BlockName} testing stats saved to ${LOCALSAVE}/${ConfFileName}.csv " >>  ${LOCALSAVE}/${ConfFileName}.log
 tail -n 1  ${LOCALSAVE}/${BlockName}-Logs/*/*-*-*.log|egrep -v '=|^$' >> ${LOCALSAVE}/${ConfFileName}.csv
@@ -907,11 +907,12 @@ do
         echo -e "[*] - Create LocalTask for Logs Gathering" |tee -a ${LOCALSAVE}/${ConfFileName}.log
         touch ${LOCALSAVE}/${BlockName}-Reports/{ExpectedCollectedReports,ActualCollectedReports}
         Generate_Collect_Logs
-        at now -f ${LOCALSAVE}/${BlockName}-Scripts/logs_gathering.sh 
+        at now -f ${LOCALSAVE}/${BlockName}-Scripts/logs_gathering.sh  &> /dev/null
     fi
 done
 echo -e "[*] - check configuration file: ${LOCALSAVE}/${ConfFileName}.conf "
 echo -e "[*] - check ${0} logs:  ${LOCALSAVE}/${ConfFileName}.log"
+echo -e "[*] - check stats: /root/CommsMatrix/Test-Conf-File-2022_10_06_05_20_30/Test-Conf-File.csv"
 echo -e "[*] - check Generated Scripts:${LOCALSAVE}/<BlockName>-Scripts"
 echo -e "[*] - check Gathered Reports:${LOCALSAVE}/<BlockName>-Reports"
 echo -e "[*] - check Gathered Logs:${LOCALSAVE}/<BlockName>-Logs"
