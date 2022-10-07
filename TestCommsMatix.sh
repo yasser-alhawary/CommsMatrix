@@ -195,7 +195,7 @@ Validate_ListentDurationInMinutes () {
 }
 Validate_Access(){
     echo -e "\t\t${1} Access/Authorization:" | tee -a ${LOCALSAVE}/${ConfFileName}.log
-    nc -w 2 -z ${1} ${SSH_PORT} 
+    socat  /dev/null  tcp4:${1}:${SSH_PORT} 
     exit_status=$?
     if [ ${exit_status} -ne 0 ]  
     then
@@ -225,7 +225,7 @@ Validate_Install_Dependencies () {
     then
         diff /bin/sh /bin/dash &> /dev/null
         exit_status=$?
-        if [ $? -eq 0 ]
+        if [ ${exit_status} -eq 0 ]
         then
             sudo ln -sf /bin/bash /bin/sh && echo -e "\t\t\tatd service default shell changed from sh to bash on " 
         else
@@ -237,7 +237,7 @@ Validate_Install_Dependencies () {
     echo -e "\t\t\tchecking for netcat/atd packages" 
     for PackageManager in "yum" "apt-get" 
     do
-        for Package in "nc" "at"
+        for Package in "at" "socat"
         do
             which ${PackageManager} &> /dev/null
             exit_status=$?
@@ -245,7 +245,7 @@ Validate_Install_Dependencies () {
             then
                 which ${Package} &> /dev/null 
                 exit_status=$?
-                if [ $? -eq 0 ]
+                if [ ${exit_status} -eq 0 ]
                 then
                     echo -e "\t\t\t\tpackage ${Package} is already installed" 
                 else 
@@ -296,23 +296,18 @@ expand_ips() {
 }
 #4-Generate script for listeners/testers/report gathering
 generate_listeners () {
-        [ -z ${TCPPorts} ] || cat <<EOF > ${LOCALSAVE}/${BlockName}-Scripts/Listeners/${ListenerIP}-tcp.sh
-        #!/bin/bash
-        mkdir -p ${REMOTESAVE}/${BlockName}-LocalLogs
-        FWStatus=\$(sudo systemctl show -p ActiveState firewalld | sed 's/ActiveState=//g')
-        if [ \${FWStatus} = active ] 
-        then
-            echo -e "Firewall on ${ListenerIP} was up: stop for ${ListentDurationInMinutes} Minutes"  &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-            sudo systemctl stop firewalld && echo 'sudo systemctl start firewalld ' |at now +${ListentDurationInMinutes} minutes
-        else
-            echo -e "Firewall on ${ListenerIP} was down: no change needed" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-        fi
-        echo -e "Start Listening on tcp Ports ${ListenerIP}:${TCPPorts} " &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-        nc --version 2>&1 |grep 'Ncat: Version'|grep 'https://nmap.org/ncat' &> /dev/null
-        exit_status=\$?
-        if [ \${exit_status} -eq 0 ]
-        then
-            echo -e "detected nc version is supported will be used for listening" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
+            [ -z ${TCPPorts} ] || cat <<EOF > ${LOCALSAVE}/${BlockName}-Scripts/Listeners/${ListenerIP}-tcp.sh
+            #!/bin/bash
+            mkdir -p ${REMOTESAVE}/${BlockName}-LocalLogs
+            FWStatus=\$(sudo systemctl show -p ActiveState firewalld | sed 's/ActiveState=//g')
+            if [ \${FWStatus} = active ] 
+            then
+                echo -e "Firewall on ${ListenerIP} was up: stop for ${ListentDurationInMinutes} Minutes"  &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
+                sudo systemctl stop firewalld && echo 'sudo systemctl start firewalld ' |at now +${ListentDurationInMinutes} minutes
+            else
+                echo -e "Firewall on ${ListenerIP} was down: no change needed" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
+            fi
+            echo -e "Start Listening on tcp Ports ${ListenerIP}:${TCPPorts} " &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
             for Ports in \$(echo ${TCPPorts}|tr ',' ' ')
             do
                 echo "\${Ports}"|grep -q '-'
@@ -324,16 +319,17 @@ generate_listeners () {
                     End_Port=\$(echo \${Ports}|cut -d '-' -f2)
                     for Port in \$(seq \${Start_Port} \${End_Port})
                     do
-                        nc -w 2 -z ${ListenerIP} \${Port}
+                        socat  /dev/null  tcp4:${ListenerIP}:\${Port},connect-timeout=0.1
                         exit_status=\$?
                         if [ \${exit_status} -ne 0 ]
                         then
                             echo -e "tcp ${ListenerIP}:\${Port} was down , bringing it up for ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-                            echo "nc -kl ${ListenerIP} \${Port}"|at now
+                            echo "socat /dev/null TCP-L:\${Port},reuseaddr,fork"|at now
                             unset PID
+                            PID=\$( pgrep -la socat|grep "socat /dev/null TCP\-L:\${Port},reuseaddr,fork"|cut -d' ' -f1)
                             while ! [[ \${PID} == ?(-)+([0-9]) ]]
                             do
-                                PID=\$( pgrep -la nc|grep "nc \-kl ${ListenerIP} \${Port}"|cut -d' ' -f1)
+                                PID=\$( pgrep -la socat|grep "socat /dev/null TCP\-L:\${Port},reuseaddr,fork"|cut -d' ' -f1)
                             done
                             echo -e "port ${ListenerIP}:\${Port} tcp is running on \${PID} will be killed after ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
                             echo "kill -9 \${PID} "|at now +${ListentDurationInMinutes} minutes
@@ -342,16 +338,17 @@ generate_listeners () {
                         fi
                     done
                 else
-                    nc -w 2 -z ${ListenerIP} \${Ports}
+                    socat  /dev/null  tcp4:${ListenerIP}:\${Ports},connect-timeout=0.1
                     exit_status=\$?
                     if [ \${exit_status} -ne 0 ]
                     then
                         echo -e "tcp ${ListenerIP}:\${Ports} was down , bringing it up for ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-                        echo "nc -kl ${ListenerIP} \${Ports}"|at now
+                        echo "socat /dev/null TCP-L:\${Ports},reuseaddr,fork"|at now
                         unset PID
+                        PID=\$( pgrep -la socat|grep "socat /dev/null TCP\-L:\${Ports},reuseaddr,fork"|cut -d' ' -f1)
                         while ! [[ \${PID} == ?(-)+([0-9]) ]]
                         do 
-                            PID=\$( pgrep -la nc|grep "nc \-kl ${ListenerIP} \${Ports}"|cut -d' ' -f1)
+                            PID=\$( pgrep -la socat|grep "socat /dev/null TCP\-L:\${Ports},reuseaddr,fork"|cut -d' ' -f1)
                         done
                         echo -e "port ${ListenerIP}:\${Ports} tcp is running on \${PID} will be killed after ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
                         echo "kill -9 \${PID} "|at now +${ListentDurationInMinutes} minutes
@@ -360,63 +357,7 @@ generate_listeners () {
                     fi
                 fi
             done
-        else
-            echo -e "detected nc version is not supported for listening , python listener will be userd" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-            if [ -e /tmp/TCP-Listener.py ] 
-            then
-                echo -e "TCP-Listener.py is already exist on ${ListenerIP}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-            else
-                echo -e "TCP-Listener.py is not exist on ${ListenerIP} will be creted on /tmp/TCP-Listener.py " &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-                echo "${Listener_TCPScript}" >> /tmp/TCP-Listener.py
-            fi
-            for Ports in \$(echo ${TCPPorts}|tr ',' ' ')
-            do
-                echo "\${Ports}"|grep -q '-'
-                exit_status=\$?
-                if [ \${exit_status} -eq 0 ] 
-                then
-                    echo -e "start Listening to \${Ports} tcp range" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-                    Start_Port=\$(echo \${Ports}|cut -d '-' -f1)
-                    End_Port=\$(echo \${Ports}|cut -d '-' -f2)
-                    for Port in \$(seq \${Start_Port} \${End_Port})
-                    do
-                        nc -w 2 -z ${ListenerIP} \${Port}
-                        exit_status=\$?
-                        if [ \${exit_status} -ne 0 ]
-                        then
-                            echo -e "tcp ${ListenerIP}:\${Port} was down , bringing it up for ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-                            echo "python /tmp/TCP-Listener.py ${ListenerIP} \${Port}"|at now
-                            unset PID
-                            while ! [[ \${PID} == ?(-)+([0-9]) ]]
-                            do
-                                PID=\$(pgrep -la python|grep "/tmp/TCP-Listener.py ${ListenerIP} \${Port}"|cut -d' ' -f1)
-                            done
-                            echo -e "port ${ListenerIP}:\${Port} tcp is running on \${PID} will be killed after ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-                            echo "kill -9 \${PID} "|at now +${ListentDurationInMinutes} minutes
-                        else
-                            echo "Port \${Port} on ${ListenerIP} was up , no change needed" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-                        fi
-                    done
-                else
-                    nc -w 2 -z ${ListenerIP} \${Ports}
-                    exit_status=\$?
-                    if [ \${exit_status} -ne 0 ]
-                    then
-                        echo -e "tcp ${ListenerIP}:\${Ports} was down , bringing it up for ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-                        echo "python /tmp/TCP-Listener.py ${ListenerIP} \${Ports}"|at now
-                        unset PID
-                        while ! [[ \${PID} == ?(-)+([0-9]) ]] 
-                        do
-                            PID=\$(pgrep -la python|grep "/tmp/TCP-Listener.py ${ListenerIP} \${Ports}"|cut -d' ' -f1)
-                        done
-                        echo -e "port ${ListenerIP}:\${Ports} tcp is running on \${PID} will be killed after ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-                        echo "kill -9 \${PID} "|at now +${ListentDurationInMinutes} minutes
-                    else
-                        echo "Port \${Ports} on ${ListenerIP} was up , no change needed" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-                    fi
-                fi
-            done
-        fi
+            
 EOF
             [ -z ${UDPPorts} ] || cat <<EOF > ${LOCALSAVE}/${BlockName}-Scripts/Listeners/${ListenerIP}-udp.sh
             #!/bin/bash
@@ -428,13 +369,6 @@ EOF
                 sudo systemctl stop firewalld && echo 'sudo systemctl start firewalld ' |at now +${ListentDurationInMinutes} minutes
             else
                 echo -e "Firewall on ${ListenerIP} was down: no change needed" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
-            fi
-            if [ -e /tmp/UDP-Listener.py ] 
-            then
-                echo -e "UDP-Listener.py is already exist on ${ListenerIP}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
-            else
-                echo -e "UDP-Listener.py is not exist on ${ListenerIP} will be created on /tmp/UDP-Listener.py " &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
-                echo "${Listener_UDPScript}" >> /tmp/UDP-Listener.py
             fi
             echo -e "Start Listening on udp Ports ${ListenerIP}:${UDPPorts} " &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
             for Ports in \$(echo ${UDPPorts}|tr ',' ' ')
@@ -448,39 +382,28 @@ EOF
                     End_Port=\$(echo \${Ports}|cut -d '-' -f2)
                     for Port in \$(seq \${Start_Port} \${End_Port})
                     do
-                        nc -uz -w 2 ${ListenerIP} \${Port}
-                        exit_status=\$?
-                        if [ \${exit_status} -ne 0 ]
-                        then
-                            echo -e "udp ${ListenerIP}:\${Port} was down , bringing it up for ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
-                            echo "python /tmp/UDP-Listener.py ${ListenerIP} \${Port}"|at now
-                            unset PID
-                            PID=\$(pgrep -la python|grep "/tmp/UDP-Listener.py ${ListenerIP} \${Port}"|cut -d' ' -f1)
-                            while ! [[ \${PID} == ?(-)+([0-9]) ]] ;do PID=\$(pgrep -la python|grep "/tmp/UDP-Listener.py ${ListenerIP} \${Port}"|cut -d' ' -f1) ; done
-                            echo -e "port ${ListenerIP}:\${Port} udp is running on \${PID} will be killed after ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
-                            echo "kill -9 \${PID} "|at now +${ListentDurationInMinutes} minutes
-                        else
-                            echo -e "udp ${ListenerIP}:\${Port} was up , no change needed" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
-                        fi
-                    done
-                else
-                    nc -uz -w 2 ${ListenerIP} \${Ports}
-                    exit_status=\$?
-                    if [ \${exit_status} -ne 0 ]
-                    then
-                        echo -e "udp ${ListenerIP}:\${Ports} was down , bringing it up for ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
-                        echo "python /tmp/UDP-Listener.py ${ListenerIP} \${Ports}"|at now
+                        echo -e "udp ${ListenerIP}:\${Port} was down , bringing it up for ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
+                        echo "socat UDP4-RECVFROM:\${Port},fork SYSTEM:cat"|at now
                         unset PID
-                        PID=\$(pgrep -la python|grep "/tmp/UDP-Listener.py ${ListenerIP} \${Ports}"|cut -d' ' -f1)
+                        PID=\$(pgrep -la socat|grep "socat UDP4-RECVFROM:\${Port},fork SYSTEM:cat"|cut -d' ' -f1)
                         while ! [[ \${PID} == ?(-)+([0-9]) ]]
                         do
-                            echo -e "port ${ListenerIP}:\${Ports} udp is running on \${PID} will be killed after ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
-                            PID=\$(pgrep -la python|grep "/tmp/UDP-Listener.py ${ListenerIP} \${Ports}"|cut -d' ' -f1)
+                            PID=\$(pgrep -la socat|grep "socat UDP4-RECVFROM:\${Port},fork SYSTEM:cat"|cut -d' ' -f1)
                         done
+                        echo -e "port ${ListenerIP}:\${Port} udp is running on \${PID} will be killed after ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
                         echo "kill -9 \${PID} "|at now +${ListentDurationInMinutes} minutes
-                    else
-                        echo -e "udp ${ListenerIP}:\${Ports} was up , no change needed" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
-                    fi
+                    done
+                else
+                    echo -e "udp ${ListenerIP}:\${Ports} was down , bringing it up for ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
+                    echo "socat UDP4-RECVFROM:\${Ports},fork SYSTEM:cat"|at now
+                    unset PID
+                    PID=\$(pgrep -la socat|grep "socat UDP4-RECVFROM:\${Ports},fork SYSTEM:cat"|cut -d' ' -f1)
+                    while ! [[ \${PID} == ?(-)+([0-9]) ]]
+                    do
+                        PID=\$(pgrep -la socat|grep "socat UDP4-RECVFROM:\${Ports},fork SYSTEM:cat"|cut -d' ' -f1)
+                    done
+                    echo -e "port ${ListenerIP}:\${Ports} udp is running on \${PID} will be killed after ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
+                    echo "kill -9 \${PID} "|at now +${ListentDurationInMinutes} minutes
                 fi
             done
 EOF
@@ -503,7 +426,7 @@ generate_testers () {
                         End_Port=\$(echo \${Ports}|cut -d '-' -f2)
                         for retry in \$(seq 1 ${ListentDurationInMinutes})
                         do
-                            nc -z -w 2 ${ListenerIP} \${End_Port} &> /dev/null
+                            socat  /dev/null  tcp4:${ListenerIP}:\${End_Port},connect-timeout=2
                             exit_status=\$?
                             if [ \${exit_status} -eq 0 ]
                             then 
@@ -512,7 +435,14 @@ generate_testers () {
                                 do
                                     ((Total++))
                                     echo -e "testing tcp ${TesterIP}=>${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log 
-                                    nc -vz -w 2 ${ListenerIP} \${Port} &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt  && ((Success++))
+                                    socat  /dev/null  tcp4:${ListenerIP}:\${Port},connect-timeout=2
+                                    exit_status=\$?
+                                    if [ \${exit_status} -eq 0 ]
+                                    then
+                                        echo "tcp:${ListenerIP}:\${Port} is up" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt  && ((Success++))
+                                    else
+                                        echo "tcp:${ListenerIP}:\${Port} is down" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt
+                                    fi
                                 done
                                 break
                             else
@@ -527,12 +457,26 @@ generate_testers () {
                             do
                                 ((Total++))
                                 echo -e "testing tcp ${TesterIP}=>${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log 
-                                nc -vz -w 2 ${ListenerIP} \${Port} &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt  && ((Success++))    
+                                socat  /dev/null  tcp4:${ListenerIP}:\${Port},connect-timeout=2
+                                exit_status=\$?
+                                if [ \${exit_status} -eq 0 ]
+                                then
+                                    echo "tcp:${ListenerIP}:\${Port} is up" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt  && ((Success++)) 
+                                else
+                                    echo "tcp:${ListenerIP}:\${Port} is down" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt  
+                                fi    
                             done
                         fi
                     else
                         ((Total++))
-                        nc -vz -w 2 ${ListenerIP} \${Ports}  &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt && ((Success++)) 
+                        socat  /dev/null  tcp4:${ListenerIP}:\${Ports},connect-timeout=2
+                        exit_status=\$?
+                        if [ \${exit_status} -eq 0 ]
+                        then
+                            echo "tcp:${ListenerIP}:\${Ports} is up" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt && ((Success++))
+                        else
+                            echo "tcp:${ListenerIP}:\${Ports} is down" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt
+                        fi
                     fi
                 done
                 echo -e "BlockName,TesterIP,ListenerIP,Protocol,Total,Success,Failure\n${BlockName},${TesterIP},${ListenerIP},tcp,\${Total},\${Success},\$(expr \${Total} - \${Success} )" >> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log
@@ -554,19 +498,32 @@ EOF
                     Start_Port=\$(echo \${Ports}|cut -d '-' -f1)
                     End_Port=\$(echo \${Ports}|cut -d '-' -f2)
                     for retry in \$(seq 1 ${ListentDurationInMinutes})
-                    do    
-                        nc -uz -w 2 ${ListenerIP} \${End_Port}  &> /dev/null
+                    do  
+                        unset result
+                        result=\$( echo "${ListenerIP}:\${End_Port}" | socat -t 1 udp:${ListenerIP}:\${End_Port} STDIO)
                         exit_status=\$?
                         if [ \${exit_status} -eq 0 ]
                         then
-                            echo -e "last port in range \${Ports} is up , start testing the whole range"     &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log
-                            for Port in \$(seq \${Start_Port} \${End_Port}) 
-                            do 
-                                ((Total++))
-                                echo -e "testing udp ${TesterIP}=>${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log 
-                                nc -vuz -w 2 ${ListenerIP} \${Port}  &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt  && ((Success++))
-                            done
-                            break
+                            if [ \${result} = "${ListenerIP}:\${End_Port}" ]
+                            then
+                                echo -e "last port in range \${Ports} is up , start testing the whole range"     &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log
+                                for Port in \$(seq \${Start_Port} \${End_Port}) 
+                                do 
+                                    ((Total++))
+                                    echo -e "testing udp ${TesterIP}=>${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log 
+                                    unset result
+                                    result=\$( echo "${ListenerIP}:\${Port}" | socat -t 1 udp:${ListenerIP}:\${Port} STDIO)
+                                    exit_status=\$?
+                                    if [ \${exit_status} -eq 0 ]
+                                    then
+                                        if [ \${result} = "${ListenerIP}:\${Port}" ]
+                                        then
+                                            echo "udp:\${result} is up" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt  && ((Success++))
+                                        fi
+                                    fi
+                                done
+                                break
+                            fi                          
                         else
                             echo -e "last port on udp range \${Ports} still down sleep for \${retry} seconds" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log
                             sleep \$retry
@@ -574,18 +531,36 @@ EOF
                     done
                     if [ \${retry} -eq ${ListentDurationInMinutes} ]
                     then 
-                        echo -e "last Port in udp port range \${Ports} is down for long time , giving up the whole range" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log
-                        for Port in \$(seq \${Start_Port} \${End_Port})
-                        do
+                        echo -e "last Port in udp port range \${Ports} is down for long time , testing the whole range anyway" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log
+                        for Port in \$(seq \${Start_Port} \${End_Port}) 
+                        do 
                             ((Total++))
-                            echo -e "testing tcp ${TesterIP}=>${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log 
-                            nc -vz -w 2 ${ListenerIP} \${Port} &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt && ((Success++))   
+                            echo -e "testing udp ${TesterIP}=>${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log 
+                            unset result
+                            result=\$( echo "${ListenerIP}:\${Port}" | socat -t 1 udp:${ListenerIP}:\${Port} STDIO) 
+                            exit_status=\$?
+                            if [ \${exit_status} -eq 0 ]
+                            then
+                                if [ \${result} = "${ListenerIP}:\${Port}" ]
+                                then
+                                    echo "udp:\${result} is up"   &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt  && ((Success++))
+                                fi
+                            fi
                         done
-                        fi
+                    fi
                 else
                     ((Total++))
                     echo "Test udp ${TesterIP}=>${ListenerIP}:\${Ports}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log
-                    nc -vuz -w 2 ${ListenerIP} \${Ports}  &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt  && ((Success++)) 
+                    unset result
+                    result=\$( echo "${ListenerIP}:\${Ports}" | socat -t 1 udp:${ListenerIP}:\${Ports} STDIO) 
+                    exit_status=\$?
+                    if [ \${exit_status} -eq 0 ]
+                    then
+                        if [ \${result} = "${ListenerIP}:\${Ports}" ]
+                        then
+                            echo "udp:\${result} is up" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt  && ((Success++))
+                        fi
+                    fi
                 fi
             done
             echo  "${TesterIP}-${ListenerIP}-udp" >> ${REMOTESAVE}/${BlockName}-LocalLogs/ActualDoneList
@@ -661,7 +636,7 @@ do
     done
     echo -e "\t\t${BlockName} Attributes : ok" |tee -a ${LOCALSAVE}/${ConfFileName}.log
 done
-#make sure the current host have nc/at
+#make sure the current host have socat/at
 Validate_Install_Dependencies localhost |tee -a ${LOCALSAVE}/${ConfFileName}.log
 #write to $CONFPATH
 echo -e "[*] - create a well formatted configuration file at : \033[0;32m  ${CONFPATH} \033[0m " |tee -a ${LOCALSAVE}/${ConfFileName}.log
@@ -912,7 +887,7 @@ do
 done
 echo -e "[*] - check configuration file: ${LOCALSAVE}/${ConfFileName}.conf "
 echo -e "[*] - check ${0} logs:  ${LOCALSAVE}/${ConfFileName}.log"
-echo -e "[*] - check stats: /root/CommsMatrix/Test-Conf-File-2022_10_06_05_20_30/Test-Conf-File.csv"
+echo -e "[*] - check stats:  ${LOCALSAVE}/${ConfFileName}.csv"
 echo -e "[*] - check Generated Scripts:${LOCALSAVE}/<BlockName>-Scripts"
 echo -e "[*] - check Gathered Reports:${LOCALSAVE}/<BlockName>-Reports"
 echo -e "[*] - check Gathered Logs:${LOCALSAVE}/<BlockName>-Logs"
