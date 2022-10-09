@@ -195,7 +195,7 @@ Validate_ListentDurationInMinutes () {
 }
 Validate_Access(){
     echo -e "\t\t${1} Access/Authorization:" | tee -a ${LOCALSAVE}/${ConfFileName}.log
-    socat  /dev/null  tcp4:${1}:${SSH_PORT} 
+    socat  /dev/null  tcp4:${1}:${SSH_PORT}  &> /dev/null
     exit_status=$?
     if [ ${exit_status} -ne 0 ]  
     then
@@ -319,42 +319,34 @@ generate_listeners () {
                     End_Port=\$(echo \${Ports}|cut -d '-' -f2)
                     for Port in \$(seq \${Start_Port} \${End_Port})
                     do
+                        cat <<EOF1 |at now
                         socat  /dev/null  tcp4:${ListenerIP}:\${Port},connect-timeout=0.1
-                        exit_status=\$?
-                        if [ \${exit_status} -ne 0 ]
+                        exit_status=\\\$?
+                        if [ \\\${exit_status} -ne 0 ]
                         then
-                            echo -e "tcp ${ListenerIP}:\${Port} was down , bringing it up for ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-                            echo "socat /dev/null TCP-L:\${Port},reuseaddr,fork"|at now
-                            unset PID
-                            PID=\$( pgrep -la socat|grep "socat /dev/null TCP\-L:\${Port},reuseaddr,fork"|cut -d' ' -f1)
-                            while ! [[ \${PID} == ?(-)+([0-9]) ]]
-                            do
-                                PID=\$( pgrep -la socat|grep "socat /dev/null TCP\-L:\${Port},reuseaddr,fork"|cut -d' ' -f1)
-                            done
-                            echo -e "port ${ListenerIP}:\${Port} tcp is running on \${PID} will be killed after ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-                            echo "kill -9 \${PID} "|at now +${ListentDurationInMinutes} minutes
+                            echo tcp ${ListenerIP}:\${Port} was down , bringing it up for ${ListentDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
+                            echo socat /dev/null TCP-L:\${Port},reuseaddr,fork |at now
+                            echo  port ${ListenerIP}:\${Port} tcp is running  will be killed after ${ListentDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
+                            echo 'kill -9 \\\$(pgrep -la socat|grep "socat /dev/null TCP\-L:\${Port},reuseaddr,fork"|cut -d\\\  -f1)'|at now +${ListentDurationInMinutes} minutes
                         else
-                            echo "Port \${Port} on ${ListenerIP} was up , no change needed" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
+                            echo Port \${Port} on ${ListenerIP} was up , no change needed &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
                         fi
+EOF1
                     done
                 else
+                    cat <<EOF2 |at now
                     socat  /dev/null  tcp4:${ListenerIP}:\${Ports},connect-timeout=0.1
-                    exit_status=\$?
-                    if [ \${exit_status} -ne 0 ]
+                    exit_status=\\\$?
+                    if [ \\\${exit_status} -ne 0 ]
                     then
-                        echo -e "tcp ${ListenerIP}:\${Ports} was down , bringing it up for ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-                        echo "socat /dev/null TCP-L:\${Ports},reuseaddr,fork"|at now
-                        unset PID
-                        PID=\$( pgrep -la socat|grep "socat /dev/null TCP\-L:\${Ports},reuseaddr,fork"|cut -d' ' -f1)
-                        while ! [[ \${PID} == ?(-)+([0-9]) ]]
-                        do 
-                            PID=\$( pgrep -la socat|grep "socat /dev/null TCP\-L:\${Ports},reuseaddr,fork"|cut -d' ' -f1)
-                        done
-                        echo -e "port ${ListenerIP}:\${Ports} tcp is running on \${PID} will be killed after ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-                        echo "kill -9 \${PID} "|at now +${ListentDurationInMinutes} minutes
+                        echo -e tcp ${ListenerIP}:\${Ports} was down , bringing it up for ${ListentDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
+                        echo socat /dev/null TCP-L:\${Ports},reuseaddr,fork|at now
+                        echo port ${ListenerIP}:\${Ports} tcp is running will be killed after ${ListentDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
+                        echo 'kill -9 \\\$(pgrep -la socat|grep "socat /dev/null TCP\-L:\${Ports},reuseaddr,fork"|cut -d\\\  -f1)'|at now +${ListentDurationInMinutes} minutes
                     else
-                        echo "Port \${Ports} on ${ListenerIP} was up , no change needed" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
+                        echo Port \${Ports} on ${ListenerIP} was up , no change needed &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
                     fi
+EOF2
                 fi
             done
             
@@ -382,28 +374,19 @@ EOF
                     End_Port=\$(echo \${Ports}|cut -d '-' -f2)
                     for Port in \$(seq \${Start_Port} \${End_Port})
                     do
-                        echo -e "udp ${ListenerIP}:\${Port} was down , bringing it up for ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
-                        echo "socat UDP4-RECVFROM:\${Port},fork SYSTEM:cat"|at now
-                        unset PID
-                        PID=\$(pgrep -la socat|grep "socat UDP4-RECVFROM:\${Port},fork SYSTEM:cat"|cut -d' ' -f1)
-                        while ! [[ \${PID} == ?(-)+([0-9]) ]]
-                        do
-                            PID=\$(pgrep -la socat|grep "socat UDP4-RECVFROM:\${Port},fork SYSTEM:cat"|cut -d' ' -f1)
-                        done
-                        echo -e "port ${ListenerIP}:\${Port} udp is running on \${PID} will be killed after ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
-                        echo "kill -9 \${PID} "|at now +${ListentDurationInMinutes} minutes
+                        cat <<EOF3 |at now
+                        echo socat UDP4-RECVFROM:\${Port},fork SYSTEM:cat|at now
+                        echo port ${ListenerIP}:\${Port} udp is running  will be killed after ${ListentDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
+                        echo 'kill -9 \\\$(pgrep -la socat|grep "socat UDP4-RECVFROM:\${Port},fork SYSTEM:cat"|cut -d\\\  -f1)'|at now +${ListentDurationInMinutes} minutes
+EOF3
                     done
                 else
-                    echo -e "udp ${ListenerIP}:\${Ports} was down , bringing it up for ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
-                    echo "socat UDP4-RECVFROM:\${Ports},fork SYSTEM:cat"|at now
-                    unset PID
-                    PID=\$(pgrep -la socat|grep "socat UDP4-RECVFROM:\${Ports},fork SYSTEM:cat"|cut -d' ' -f1)
-                    while ! [[ \${PID} == ?(-)+([0-9]) ]]
-                    do
-                        PID=\$(pgrep -la socat|grep "socat UDP4-RECVFROM:\${Ports},fork SYSTEM:cat"|cut -d' ' -f1)
-                    done
-                    echo -e "port ${ListenerIP}:\${Ports} udp is running on \${PID} will be killed after ${ListentDurationInMinutes} Minutes" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
-                    echo "kill -9 \${PID} "|at now +${ListentDurationInMinutes} minutes
+                    cat <<EOF4 |at now
+                    echo udp ${ListenerIP}:\${Ports} was down , bringing it up for ${ListentDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
+                    echo socat UDP4-RECVFROM:\${Ports},fork SYSTEM:cat|at now
+                    echo port ${ListenerIP}:\${Ports} udp is running will be killed after ${ListentDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
+                    echo 'kill -9 \\\$(pgrep -la socat|grep "socat UDP4-RECVFROM:\${Ports},fork SYSTEM:cat"|cut -d\\\  -f1)'|at now +${ListentDurationInMinutes} minutes
+EOF4
                 fi
             done
 EOF
@@ -426,7 +409,7 @@ generate_testers () {
                         End_Port=\$(echo \${Ports}|cut -d '-' -f2)
                         for retry in \$(seq 1 ${ListentDurationInMinutes})
                         do
-                            socat  /dev/null  tcp4:${ListenerIP}:\${End_Port},connect-timeout=2
+                            socat  /dev/null  tcp4:${ListenerIP}:\${End_Port},connect-timeout=3
                             exit_status=\$?
                             if [ \${exit_status} -eq 0 ]
                             then 
@@ -435,7 +418,7 @@ generate_testers () {
                                 do
                                     ((Total++))
                                     echo -e "testing tcp ${TesterIP}=>${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log 
-                                    socat  /dev/null  tcp4:${ListenerIP}:\${Port},connect-timeout=2
+                                    socat  /dev/null  tcp4:${ListenerIP}:\${Port},connect-timeout=3
                                     exit_status=\$?
                                     if [ \${exit_status} -eq 0 ]
                                     then
@@ -444,20 +427,21 @@ generate_testers () {
                                         echo "tcp:${ListenerIP}:\${Port} is down" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt
                                     fi
                                 done
+                                retry=\$(expr ${ListentDurationInMinutes} + 1 )
                                 break
                             else
                                 echo -e "last port on tcp range \${Ports} still down sleep for \${retry} seconds" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log
                                 sleep \${retry}
                             fi
                         done
-                        if [ \${retry} -eq ${ListentDurationInMinutes} ]
+                        if [ \${retry} -ne \$(expr ${ListentDurationInMinutes} + 1 ) ]
                         then 
                             echo -e "last Port in tcp port range \${Ports} is down for long time , testing the whole range anyway" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log
                             for Port in \$(seq \${Start_Port} \${End_Port})
                             do
                                 ((Total++))
                                 echo -e "testing tcp ${TesterIP}=>${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log 
-                                socat  /dev/null  tcp4:${ListenerIP}:\${Port},connect-timeout=2
+                                socat  /dev/null  tcp4:${ListenerIP}:\${Port},connect-timeout=3
                                 exit_status=\$?
                                 if [ \${exit_status} -eq 0 ]
                                 then
@@ -469,7 +453,7 @@ generate_testers () {
                         fi
                     else
                         ((Total++))
-                        socat  /dev/null  tcp4:${ListenerIP}:\${Ports},connect-timeout=2
+                        socat  /dev/null  tcp4:${ListenerIP}:\${Ports},connect-timeout=3
                         exit_status=\$?
                         if [ \${exit_status} -eq 0 ]
                         then
@@ -500,7 +484,7 @@ EOF
                     for retry in \$(seq 1 ${ListentDurationInMinutes})
                     do  
                         unset result
-                        result=\$( echo "${ListenerIP}:\${End_Port}" | socat -t 1 udp:${ListenerIP}:\${End_Port} STDIO)
+                        result=\$( echo "${ListenerIP}:\${End_Port}" | socat -t 2 udp:${ListenerIP}:\${End_Port} STDIO)
                         exit_status=\$?
                         if [ \${exit_status} -eq 0 ]
                         then
@@ -512,16 +496,21 @@ EOF
                                     ((Total++))
                                     echo -e "testing udp ${TesterIP}=>${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log 
                                     unset result
-                                    result=\$( echo "${ListenerIP}:\${Port}" | socat -t 1 udp:${ListenerIP}:\${Port} STDIO)
+                                    result=\$( echo "${ListenerIP}:\${Port}" | socat -t 2 udp:${ListenerIP}:\${Port} STDIO)
                                     exit_status=\$?
                                     if [ \${exit_status} -eq 0 ]
                                     then
                                         if [ \${result} = "${ListenerIP}:\${Port}" ]
                                         then
                                             echo "udp:\${result} is up" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt  && ((Success++))
+                                        else
+                                            echo "udp:${ListenerIP}:\${Port} is down" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt
                                         fi
+                                    else
+                                        echo "udp:${ListenerIP}:\${Port} is down" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt
                                     fi
                                 done
+                                retry=\$(expr ${ListentDurationInMinutes} + 1 )
                                 break
                             fi                          
                         else
@@ -529,7 +518,7 @@ EOF
                             sleep \$retry
                         fi
                     done
-                    if [ \${retry} -eq ${ListentDurationInMinutes} ]
+                    if [ \${retry} -ne \$(expr ${ListentDurationInMinutes} + 1 ) ]
                     then 
                         echo -e "last Port in udp port range \${Ports} is down for long time , testing the whole range anyway" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log
                         for Port in \$(seq \${Start_Port} \${End_Port}) 
@@ -537,14 +526,18 @@ EOF
                             ((Total++))
                             echo -e "testing udp ${TesterIP}=>${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log 
                             unset result
-                            result=\$( echo "${ListenerIP}:\${Port}" | socat -t 1 udp:${ListenerIP}:\${Port} STDIO) 
+                            result=\$( echo "${ListenerIP}:\${Port}" | socat -t 2 udp:${ListenerIP}:\${Port} STDIO) 
                             exit_status=\$?
                             if [ \${exit_status} -eq 0 ]
                             then
                                 if [ \${result} = "${ListenerIP}:\${Port}" ]
                                 then
                                     echo "udp:\${result} is up"   &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt  && ((Success++))
+                                else
+                                    echo "udp:${ListenerIP}:\${Port} is down" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt
                                 fi
+                            else
+                                echo "udp:${ListenerIP}:\${Port} is down" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt
                             fi
                         done
                     fi
@@ -552,14 +545,18 @@ EOF
                     ((Total++))
                     echo "Test udp ${TesterIP}=>${ListenerIP}:\${Ports}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log
                     unset result
-                    result=\$( echo "${ListenerIP}:\${Ports}" | socat -t 1 udp:${ListenerIP}:\${Ports} STDIO) 
+                    result=\$( echo "${ListenerIP}:\${Ports}" | socat -t 2 udp:${ListenerIP}:\${Ports} STDIO) 
                     exit_status=\$?
                     if [ \${exit_status} -eq 0 ]
                     then
                         if [ \${result} = "${ListenerIP}:\${Ports}" ]
                         then
                             echo "udp:\${result} is up" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt  && ((Success++))
+                        else
+                            echo "udp:\${result} is down" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt
                         fi
+                    else
+                            echo "udp:\${result} is down" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt
                     fi
                 fi
             done
@@ -570,10 +567,11 @@ EOF
 }
 Generate_Collect_Reports () {
 cat <<EOF > ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}.sh
+scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/${BlockName}-LocalLogs/ActualDoneList ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ActualDoneList/ &> /dev/null
 until [ "\$(sort -n ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ExpectedDoneList)" = "\$(sort -n ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ActualDoneList)" ]
 do
-    sleep $(expr ${ListentDurationInMinutes} \* 6 ) 
     echo -e "Waiting for ${BlockName} => ${TesterIP} to finish testing sleep for $(expr ${ListentDurationInMinutes} \* 6 ) seconds  " >> ${LOCALSAVE}/${ConfFileName}.log
+    sleep $(expr ${ListentDurationInMinutes} \* 6 ) 
     scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/${BlockName}-LocalLogs/ActualDoneList ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ActualDoneList 
 done
 scp -rP ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/${BlockName}-LocalReports ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}
@@ -585,8 +583,8 @@ Generate_Collect_Logs () {
 cat <<EOF > ${LOCALSAVE}/${BlockName}-Scripts/logs_gathering.sh
 until [ "\$(sort -n ${LOCALSAVE}/${BlockName}-Reports/ActualCollectedReports)" = "\$(sort -n ${LOCALSAVE}/${BlockName}-Reports/ExpectedCollectedReports )" ]
 do
-    sleep $(expr ${ListentDurationInMinutes} \* 6 ) 
-    echo -e "Logs will be gathered once all testers reports gathered sleep for $(expr ${ListentDurationInMinutes} \* 6 ) seconds  " >> ${LOCALSAVE}/${ConfFileName}.log
+    echo -e "Logs will be gathered once all testers reports gathered sleep for $(expr ${ListentDurationInMinutes} \* 6 + 20 ) seconds  " >> ${LOCALSAVE}/${ConfFileName}.log
+    sleep $(expr ${ListentDurationInMinutes} \* 6 + 20 ) 
 done
 for IP in ${ALLIPsUniq}
 do
@@ -789,7 +787,7 @@ do
     grep -q ${BlockName}_ListenersIPs ${CONFPATH} 	&&  ListenersIPs=$(grep ${BlockName}_ListenersIPs ${CONFPATH}|cut -d ':' -f2)	&& Validate_IPS ${ListenersIPs} ListenersIPs
     if [ ${BlockName} != Default ]
     then 
-        unset User  Mode IPs TestersIPs ListenersIPs Expanded_TestersIPs Expanded_ListenersIPs
+        unset User  Mode IPs TestersIPs ListenersIPs Expanded_TestersIPs Expanded_ListenersIPs ALLIPsUniq
         User=$(grep ${BlockName}_User ${CONFPATH}|cut -d':' -f2)
         Mode=$(grep ${BlockName}_Mode ${CONFPATH}|cut -d':' -f2)
         [ ${Mode} = bi ] && ListenersIPs=$(grep ${BlockName}_IPs ${CONFPATH}|cut -d':' -f2) || ListenersIPs=$(grep ${BlockName}_ListenersIPs ${CONFPATH}|cut -d':' -f2)
@@ -799,7 +797,7 @@ do
         ALLIPsUniq=$(echo "${Expanded_TestersIPs} ${Expanded_ListenersIPs}"|tr ' ' '\n'|sort|uniq|tr '\n' ' ')
         for IP in ${ALLIPsUniq}
         do
-                Validate_Access ${IP}
+                Validate_Access ${IP} 
                 ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${IP} "$(typeset -f Validate_Install_Dependencies);  Validate_Install_Dependencies ${IP}" |tee -a ${LOCALSAVE}/${ConfFileName}.log
         done
     fi
@@ -845,8 +843,8 @@ do
                 [ ${TesterIP} = ${ListenerIP} ] && continue 
                 echo -e "\t\t\tTester:\033[0;32m${TesterIP}=>${ListenerIP} ok \033[0m" |tee -a ${LOCALSAVE}/${ConfFileName}.log
                 generate_testers
-                grep -q ${BlockName}_TCPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-tcp.sh &> /dev/null
-                grep -q ${BlockName}_UDPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-udp.sh &> /dev/null
+                grep -q ${BlockName}_TCPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD} +$(expr ${ListentDurationInMinutes} / 10 ) minutes  < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-tcp.sh &> /dev/null
+                grep -q ${BlockName}_UDPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD} +$(expr ${ListentDurationInMinutes} / 10 ) minutes < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-udp.sh &> /dev/null
                 [ -z ${TCPPorts} ] ||  echo  "${TesterIP}-${ListenerIP}-tcp" >> ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ExpectedDoneList
                 [ -z ${UDPPorts} ] ||  echo  "${TesterIP}-${ListenerIP}-udp" >> ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ExpectedDoneList
             done
@@ -860,6 +858,7 @@ do
     if [ ${BlockName} != Default ]
     then             
         echo -e "\t\033[0;32m${BlockName}\033[0m:interval=$(expr ${ListentDurationInMinutes} \* 6) seconds" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+        unset User ListentDurationInMinutes Mode IPs TestersIPs ListenersIPs TCPPorts UDPPorts Expanded_TestersIPs Expanded_ListenersIPs
         User=$(grep ${BlockName}_User ${CONFPATH}|cut -d':' -f2)
         ListentDurationInMinutes=$(grep ${BlockName}_ListentDurationInMinutes ${CONFPATH}|cut -d':' -f2)
         Mode=$(grep ${BlockName}_Mode ${CONFPATH}|cut -d':' -f2)
@@ -874,15 +873,14 @@ do
         do
             touch ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-{ExpectedDoneList,ActualDoneList}
             echo -e "\t\t${TesterIP}:path=\033[0;32m ${LOCALSAVE}/${BlockName}-Reports/${TesterIP} \033[0m"|tee -a ${LOCALSAVE}/${ConfFileName}.log
-            scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/${BlockName}-LocalLogs/ActualDoneList ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ActualDoneList/ &> /dev/null
             Generate_Collect_Reports &> /dev/null
-            at now  -f ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}.sh &> /dev/null
+            at now +$(expr ${ListentDurationInMinutes} / 5 ) minutes   -f ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}.sh &> /dev/null
             echo -e "${BlockName}-${TesterIP}" >> ${LOCALSAVE}/${BlockName}-Reports/ExpectedCollectedReports
         done
         echo -e "[*] - Create LocalTask for Logs Gathering" |tee -a ${LOCALSAVE}/${ConfFileName}.log
         touch ${LOCALSAVE}/${BlockName}-Reports/{ExpectedCollectedReports,ActualCollectedReports}
         Generate_Collect_Logs
-        at now -f ${LOCALSAVE}/${BlockName}-Scripts/logs_gathering.sh  &> /dev/null
+        at now +$(expr ${ListentDurationInMinutes} / 5 ) minutes -f ${LOCALSAVE}/${BlockName}-Scripts/logs_gathering.sh  &> /dev/null
     fi
 done
 echo -e "[*] - check configuration file: ${LOCALSAVE}/${ConfFileName}.conf "
