@@ -251,7 +251,7 @@ Validate_Install_Dependencies () {
                 else 
                     sudo ${PackageManager} install -y -q  ${Package}  && echo -e "\t\t\t\t${Package} is not installed ,installing .."
                 fi
-                [ ${Package} = "at" ] &&  sudo  systemctl start atd &> /dev/null
+                [ ${Package} = "at" ] &&  sudo  systemctl stop atd  ; nohup atd -b 1 -l $(cat /proc/cpuinfo|grep processor|wc -l)  & &> /dev/null
             fi
         done
     done
