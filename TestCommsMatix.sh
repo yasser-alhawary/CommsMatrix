@@ -76,34 +76,6 @@ ExecutionDate=$(date  +"%Y_%m_%d_%H_%M_%S")
 LOCALSAVE="${HOME}/CommsMatrix/${ConfFileName}-${ExecutionDate}"
 CONFPATH="${LOCALSAVE}/${ConfFileName}.conf"
 SSH_PORT=22
-Listener_UDPScript="#!/usr/bin/python
-from socket import socket,AF_INET,SOCK_DGRAM,SO_REUSEADDR,SOL_SOCKET
-from time import sleep,ctime
-import sys
-if len(sys.argv)>2:
-    localIP = sys.argv[1]
-    localPort = int(sys.argv[2])
-bufSize = 1500
-sock = socket(family=AF_INET, type=SOCK_DGRAM)
-sock.setsockopt(SOL_SOCKET,SO_REUSEADDR, 1)
-sock.bind((localIP, localPort))
-while True:
-    message, ipport = sock.recvfrom(bufSize)"
-Listener_TCPScript="#!/usr/bin/python
-import socket
-import sys
-if len(sys.argv)>2:
-    localIP = sys.argv[1]
-    localPort = int(sys.argv[2])
-bufSize = 1500
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.bind((localIP, localPort))
-sock.listen(1)
-conn, addr = sock.accept()
-while True:
-    data = conn.recv(bufSize)
-    conn.sendall(data)"
-
 ####functions to be called later#####
 #1-Validation functions
 Validate_Ports() {
@@ -329,9 +301,11 @@ expand_ports () {
 }
 #4-Generate script for listeners/testers/report gathering
 generate_listeners () {
-            [ -z ${TCPPorts} ] || cat <<EOF > ${LOCALSAVE}/${BlockName}-Scripts/Listeners/${ListenerIP}-tcp.sh
+            [ -z ${TCPPorts} ] || cat <<TCPLSNR > ${LOCALSAVE}/${BlockName}-Scripts/Listeners/${ListenerIP}-tcp.sh
             #!/bin/bash
+            mkdir -p ${REMOTESAVE}/Flags
             mkdir -p ${REMOTESAVE}/${BlockName}-LocalLogs
+            touch ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-{Actual,Expected,ALL}-TCP-ListenPorts.txt
             FWStatus=\$(sudo systemctl show -p ActiveState firewalld | sed 's/ActiveState=//g')
             if [ \${FWStatus} = active ] 
             then
@@ -343,25 +317,33 @@ generate_listeners () {
             echo -e "Start Listening on tcp Ports ${ListenerIP}:${TCPPorts} " &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
             for Port in ${Expanded_TCPPorts}
             do
-                cat <<EOF1 |at now
+                cat <<SUBTCPLSNR |at now
                 socat  /dev/null  tcp4:${ListenerIP}:\${Port},connect-timeout=0.1
                 exit_status=\\\$?
                 if [ \\\${exit_status} -ne 0 ]
                 then
                     echo -e tcp ${ListenerIP}:\${Port} was down , bringing it up for ${ListentDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-                    echo socat /dev/null TCP-L:\${Port},reuseaddr,fork|at now
+                    echo socat /dev/null TCP-L:\${Port},reuseaddr,fork,bind=${ListenerIP}|at now
                     echo port ${ListenerIP}:\${Port} tcp is running will be killed after ${ListentDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-                    echo 'kill -9 \\\$(pgrep -la socat|grep "socat /dev/null TCP\-L:\${Port},reuseaddr,fork"|cut -d\\\  -f1)'|at now +${ListentDurationInMinutes} minutes
+                    echo pkill -9 -f '"socat /dev/null TCP-L:\${Port},reuseaddr,fork"'|at now +${ListentDurationInMinutes} minutes
                 else
                     echo Port \${Port} on ${ListenerIP} was up , no change needed &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
                 fi
-EOF1
+                echo "tcp:${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-Actual-TCP-ListenPorts.txt
+SUBTCPLSNR
+                echo "tcp:${ListenerIP}:\${Port}" &>>  ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-Expected-TCP-ListenPorts.txt
             done
-            
-EOF
-            [ -z ${UDPPorts} ] || cat <<EOF > ${LOCALSAVE}/${BlockName}-Scripts/Listeners/${ListenerIP}-udp.sh
+            until [ "\$(sort -n ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-Actual-TCP-ListenPorts.txt)" = "\$(sort -n ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-Expected-TCP-ListenPorts.txt)" ]
+            do
+                sleep 60
+            done
+            echo up >> ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-TCP-ListenPorts.txt
+TCPLSNR
+            [ -z ${UDPPorts} ] || cat <<UDPLSNR > ${LOCALSAVE}/${BlockName}-Scripts/Listeners/${ListenerIP}-udp.sh
             #!/bin/bash
+            mkdir -p ${REMOTESAVE}/Flags
             mkdir -p ${REMOTESAVE}/${BlockName}-LocalLogs
+            touch ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-{Actual,Expected,ALL}-UDP-ListenPorts.txt
             FWStatus=\$(sudo systemctl show -p ActiveState firewalld | sed 's/ActiveState=//g')
             if [ \${FWStatus} = active ]
             then
@@ -373,24 +355,31 @@ EOF
             echo -e "Start Listening on udp Ports ${ListenerIP}:${UDPPorts} " &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
             for Port in ${Expanded_UDPPorts}
             do
-                cat <<EOF2 |at now
+                cat <<SUBUDPLSNR |at now
                 echo udp ${ListenerIP}:\${Port} was down , bringing it up for ${ListentDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
-                echo socat UDP4-RECVFROM:\${Port},fork SYSTEM:cat|at now
+                echo "socat UDP4-RECVFROM:\${Port},fork,bind=${ListenerIP} SYSTEM:'echo up'"|at now
                 echo port ${ListenerIP}:\${Port} udp is running will be killed after ${ListentDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
-                echo 'kill -9 \\\$(pgrep -la socat|grep "socat UDP4-RECVFROM:\${Port},fork SYSTEM:cat"|cut -d\\\  -f1)'|at now +${ListentDurationInMinutes} minutes
-EOF2
+                echo pkill -9 -f '"socat UDP4-RECVFROM:\${Port},fork"'|at now +${ListentDurationInMinutes} minutes
+                echo "udp:${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-Actual-UDP-ListenPorts.txt
+SUBUDPLSNR
+                echo "udp:${ListenerIP}:\${Port}" &>>  ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-Expected-UDP-ListenPorts.txt
             done
-EOF
+            until [ "\$(sort -n ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-Actual-UDP-ListenPorts.txt)" = "\$(sort -n ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-Expected-UDP-ListenPorts.txt)" ]
+            do
+                sleep 60
+            done
+            echo up >> ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-UDP-ListenPorts.txt
+UDPLSNR
 }
 generate_testers () {
-                [ -z ${TCPPorts} ] || cat <<EOF > ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-tcp.sh
+                [ -z ${TCPPorts} ] || cat <<TCPTSTR > ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-tcp.sh
                 #!/bin/bash
                 mkdir -p ${REMOTESAVE}/${BlockName}-{LocalReports,LocalLogs}
-                touch ${REMOTESAVE}/${BlockName}-LocalLogs/ActualDoneList
-                Total=0;Success=0
+                mkdir -p ${REMOTESAVE}/Flags
+                touch ${REMOTESAVE}/Flags/${BlockName}-${TesterIP}-AllTested
                 for Port in ${Expanded_TCPPorts}
                 do
-                    cat <<EOF3 |at now
+                    cat <<SUDBTCPTSTR |at now
                     socat  /dev/null  tcp4:${ListenerIP}:\${Port},connect-timeout=3
                     exit_status=\\\$?
                     if [ \\\${exit_status} -eq 0 ]
@@ -399,30 +388,30 @@ generate_testers () {
                     else
                         echo "tcp:${ListenerIP}:\${Port} is down" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt
                     fi
-EOF3
+SUDBTCPTSTR
                 done
                 until [ \$(cat ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt|wc -l) -eq ${Total_TCP} ]
                 do
-                sleep 1
+                    sleep 60
                 done
                 echo -e "BlockName,TesterIP,ListenerIP,Protocol,Total,Success,Failure\n${BlockName},${TesterIP},${ListenerIP},tcp,${Total_TCP},\$(grep -c  "is up" ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt),\$(grep -c  "is down" ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt)" >> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log
-                echo  "${TesterIP}-${ListenerIP}-tcp" >> ${REMOTESAVE}/${BlockName}-LocalLogs/ActualDoneList
-EOF
-            [ -z ${UDPPorts} ] || cat <<EOF > ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-udp.sh
+                echo  "${TesterIP}-${ListenerIP}-tcp" >> ${REMOTESAVE}/Flags/${BlockName}-${TesterIP}-AllTested
+TCPTSTR
+            [ -z ${UDPPorts} ] || cat <<UDPTSTR > ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-udp.sh
             #!/bin/bash
             mkdir -p ${REMOTESAVE}/${BlockName}-{LocalReports,LocalLogs}
-            touch ${REMOTESAVE}/${BlockName}-LocalLogs/ActualDoneList
-            Total=0;Success=0
+            mkdir -p  ${REMOTESAVE}/Flags
+            touch ${REMOTESAVE}/Flags/${BlockName}-${TesterIP}-AllTested
             for Port in ${Expanded_UDPPorts}
             do                
-                cat <<EOF4 |at now
+                cat <<SUDBUDPTSTR |at now
                 echo "Test udp ${TesterIP}=>${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log
                 unset result
-                result=\\\$( echo "${ListenerIP}:\${Port}" | socat -t 2 udp:${ListenerIP}:\${Port} STDIO) 
+                result=\\\$( echo '' | socat -t 10 udp:${ListenerIP}:\${Port} STDIO) 
                 exit_status=\\\$?
                 if [ \\\${exit_status} -eq 0 ]
                 then
-                    if [ \\\${result} = "${ListenerIP}:\${Port}" ]
+                    if [ \\\${result} = "up" ]
                     then
                         echo "udp:${ListenerIP}:\${Port} is up" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt
                     else
@@ -431,36 +420,36 @@ EOF
                 else
                         echo "udp:${ListenerIP}:\${Port} is down" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt
                 fi
-EOF4
+SUDBUDPTSTR
             done
             until [ \$(cat ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt|wc -l) -eq ${Total_UDP} ]
             do
-                sleep 1
+                sleep 60
             done
-            echo  "${TesterIP}-${ListenerIP}-udp" >> ${REMOTESAVE}/${BlockName}-LocalLogs/ActualDoneList
+            echo  "${TesterIP}-${ListenerIP}-udp" >> ${REMOTESAVE}/Flags/${BlockName}-${TesterIP}-AllTested
             echo -e "BlockName,TesterIP,ListenerIP,Protocol,Total,Success,Failure\n${BlockName},${TesterIP},${ListenerIP},udp,${Total_UDP},\$(grep -c  "is up" ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt),\$(grep -c  "is down" ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt)" >> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log
-EOF
+UDPTSTR
 }
 Generate_Collect_Reports () {
-cat <<EOF > ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}.sh
-scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/${BlockName}-LocalLogs/ActualDoneList ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ActualDoneList/ &> /dev/null
+cat <<REPORTCOLLECTOR > ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}.sh
+scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/Flags/${BlockName}-${TesterIP}-AllTested ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ActualDoneList/ &> /dev/null
 until [ "\$(sort -n ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ExpectedDoneList)" = "\$(sort -n ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ActualDoneList)" ]
 do
-    echo -e "Waiting for ${BlockName} => ${TesterIP} to finish testing sleep for $(expr ${ListentDurationInMinutes} \* 6 ) seconds  " >> ${LOCALSAVE}/${ConfFileName}.log
-    sleep $(expr ${ListentDurationInMinutes} \* 6 ) 
-    scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/${BlockName}-LocalLogs/ActualDoneList ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ActualDoneList 
+    echo -e "Waiting for ${BlockName} => ${TesterIP} to finish testing sleep for 60 seconds  " >> ${LOCALSAVE}/${ConfFileName}.log
+    sleep 60
+    scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/Flags/${BlockName}-${TesterIP}-AllTested ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ActualDoneList 
 done
 scp -rP ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/${BlockName}-LocalReports ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}
 echo -e "${BlockName}=>${TesterIP} finished testing reports saved to ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}" >>  ${LOCALSAVE}/${ConfFileName}.log
 echo -e "${BlockName}-${TesterIP}" >> ${LOCALSAVE}/${BlockName}-Reports/ActualCollectedReports
-EOF
+REPORTCOLLECTOR
 }
 Generate_Collect_Logs () {
-cat <<EOF > ${LOCALSAVE}/${BlockName}-Scripts/logs_gathering.sh
+cat <<LOGCOLLECTOR > ${LOCALSAVE}/${BlockName}-Scripts/logs_gathering.sh
 until [ "\$(sort -n ${LOCALSAVE}/${BlockName}-Reports/ActualCollectedReports)" = "\$(sort -n ${LOCALSAVE}/${BlockName}-Reports/ExpectedCollectedReports )" ]
 do
-    echo -e "Logs will be gathered once all testers reports gathered sleep for $(expr ${ListentDurationInMinutes} \* 6 + 20 ) seconds  " >> ${LOCALSAVE}/${ConfFileName}.log
-    sleep $(expr ${ListentDurationInMinutes} \* 6 + 20 ) 
+    echo -e "Logs will be gathered once all testers reports gathered sleep for 120 seconds  " >> ${LOCALSAVE}/${ConfFileName}.log
+    sleep 120 
 done
 for IP in ${ALLIPsUniq}
 do
@@ -471,7 +460,7 @@ echo -e "all ${BlockName} logs gathered saved to ${LOCALSAVE}/${BlockName}-Logs/
 ###generate stats
 echo -e "${BlockName} testing stats saved to ${LOCALSAVE}/${ConfFileName}.csv " >>  ${LOCALSAVE}/${ConfFileName}.log
 tail -n 1  ${LOCALSAVE}/${BlockName}-Logs/*/*-*-*.log|egrep -v '=|^$' >> ${LOCALSAVE}/${ConfFileName}.csv
-EOF
+LOGCOLLECTOR
 }
 ######################Start######################
 #essential Validation 
@@ -709,24 +698,65 @@ do
         expand_ips "TestersIPs:${TestersIPs}"
         [ -z ${TCPPorts} ] || expand_ports "TCPPorts:${TCPPorts}"
         [ -z ${UDPPorts} ] || expand_ports "UDPPorts:${UDPPorts}"
+        export -f generate_testers
         # take the listener spaced ips and generate the scripts
-        for ListenerIP in ${Expanded_ListenersIPs}
-        do 
-            echo -e "\t\tListener:\033[0;32m ${ListenerIP}  ok \033[0m " |tee -a ${LOCALSAVE}/${ConfFileName}.log
-            generate_listeners
-            grep -q ${BlockName}_TCPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${ListenerIP} ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Listeners/${ListenerIP}-tcp.sh &> /dev/null
-            grep -q ${BlockName}_UDPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${ListenerIP} ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Listeners/${ListenerIP}-udp.sh &> /dev/null
-            for TesterIP  in ${Expanded_TestersIPs}
-            do
-                [ ${TesterIP} = ${ListenerIP} ] && continue 
-                echo -e "\t\t\tTester:\033[0;32m${TesterIP}=>${ListenerIP} ok \033[0m" |tee -a ${LOCALSAVE}/${ConfFileName}.log
-                generate_testers
-                grep -q ${BlockName}_TCPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD} +$(expr ${ListentDurationInMinutes} / 10 ) minutes  < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-tcp.sh &> /dev/null
-                grep -q ${BlockName}_UDPPorts ${CONFPATH} && ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD} +$(expr ${ListentDurationInMinutes} / 10 ) minutes < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-udp.sh &> /dev/null
-                [ -z ${TCPPorts} ] ||  echo  "${TesterIP}-${ListenerIP}-tcp" >> ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ExpectedDoneList
-                [ -z ${UDPPorts} ] ||  echo  "${TesterIP}-${ListenerIP}-udp" >> ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ExpectedDoneList
+        grep -q ${BlockName}_TCPPorts ${CONFPATH} &> /dev/null
+        exit_status=$?
+        if [ ${exit_status} -eq 0 ]
+        then
+            for ListenerIP in ${Expanded_ListenersIPs}
+            do 
+                echo -e "\t\tListener:\033[0;32m ${ListenerIP}  ok \033[0m " |tee -a ${LOCALSAVE}/${ConfFileName}.log
+                generate_listeners
+                ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${ListenerIP} ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Listeners/${ListenerIP}-tcp.sh &> /dev/null
+                for TesterIP  in ${Expanded_TestersIPs}
+                do
+                    [ ${TesterIP} = ${ListenerIP} ] && continue
+                    echo -e "\t\t\tTester:${TesterIP}-TCP Will be executed once all listener ports ready" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+                    generate_testers
+                    echo  "${TesterIP}-${ListenerIP}-tcp" >> ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ExpectedDoneList
+                    cat <<TCPTASK | at now  &> /dev/null
+                    scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${ListenerIP}:${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-TCP-ListenPorts.txt ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${ListenerIP}-ALL-TCP-Listen.txt &> /dev/null
+                    until [ "\$(grep up ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${ListenerIP}-ALL-TCP-Listen.txt )" = "up" ]
+                    do
+                        sleep 10
+                        scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${ListenerIP}:${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-TCP-ListenPorts.txt ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${ListenerIP}-ALL-TCP-Listen.txt &> /dev/null
+
+                    done
+                    echo -e "Tester:tcp:${TesterIP}=>${ListenerIP} ok" >> ${LOCALSAVE}/${ConfFileName}.log
+                    ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD} +\$(expr ${ListentDurationInMinutes} / 10  ) minutes   < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-tcp.sh &> /dev/null
+TCPTASK
+                done
             done
-        done
+        fi
+        grep -q ${BlockName}_UDPPorts ${CONFPATH}  &> /dev/null
+        exit_status=$?
+        if [ ${exit_status} -eq 0 ]
+        then
+            for ListenerIP in ${Expanded_ListenersIPs}
+            do 
+                echo -e "\t\tListener:\033[0;32m ${ListenerIP}  ok \033[0m " |tee -a ${LOCALSAVE}/${ConfFileName}.log
+                generate_listeners
+                ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${ListenerIP} ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Listeners/${ListenerIP}-udp.sh &> /dev/null
+                for TesterIP  in ${Expanded_TestersIPs}
+                do
+                    [ ${TesterIP} = ${ListenerIP} ] && continue 
+                    echo -e "\t\t\tTester:${TesterIP}-UDP Will be executed once all listener ports ready" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+                    generate_testers
+                    echo  "${TesterIP}-${ListenerIP}-udp" >> ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ExpectedDoneList
+                    cat <<UDPTASK | at now &> /dev/null
+                    scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${ListenerIP}:${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-UDP-ListenPorts.txt ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${ListenerIP}-ALL-UDP-Listen.txt &> /dev/null
+                    until [ "\$(grep up ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${ListenerIP}-ALL-UDP-Listen.txt )" = "up" ]
+                    do
+                        sleep 10
+                        scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${ListenerIP}:${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-UDP-ListenPorts.txt ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${ListenerIP}-ALL-UDP-Listen.txt &> /dev/null
+                    done
+                    echo -e "Tester:udp:${TesterIP}=>${ListenerIP} ok" >> ${LOCALSAVE}/${ConfFileName}.log
+                    ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD} +\$(expr ${ListentDurationInMinutes} / 10  ) minutes  < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-udp.sh &> /dev/null
+UDPTASK
+                done
+            done
+        fi
     fi
 done  
 echo -e "[*] - Create LocalTasks for Reports Gathering" |tee -a ${LOCALSAVE}/${ConfFileName}.log
@@ -747,18 +777,18 @@ do
         expand_ips "TestersIPs:${TestersIPs}"
         expand_ips "ListenersIPs:${ListenersIPs}"
         ALLIPsUniq=$(echo "${Expanded_TestersIPs} ${Expanded_ListenersIPs}"|tr ' ' '\n'|sort|uniq|tr '\n' ' ')
+        touch ${LOCALSAVE}/${BlockName}-Reports/{ExpectedCollectedReports,ActualCollectedReports}
         for TesterIP  in ${Expanded_TestersIPs}
         do
             touch ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-{ExpectedDoneList,ActualDoneList}
             echo -e "\t\t${TesterIP}:path=\033[0;32m ${LOCALSAVE}/${BlockName}-Reports/${TesterIP} \033[0m"|tee -a ${LOCALSAVE}/${ConfFileName}.log
             Generate_Collect_Reports &> /dev/null
-            at now +$(expr ${ListentDurationInMinutes} / 5 ) minutes   -f ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}.sh &> /dev/null
+            at now  -f ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}.sh &> /dev/null
             echo -e "${BlockName}-${TesterIP}" >> ${LOCALSAVE}/${BlockName}-Reports/ExpectedCollectedReports
         done
         echo -e "[*] - Create LocalTask for Logs Gathering" |tee -a ${LOCALSAVE}/${ConfFileName}.log
-        touch ${LOCALSAVE}/${BlockName}-Reports/{ExpectedCollectedReports,ActualCollectedReports}
-        Generate_Collect_Logs
-        at now +$(expr ${ListentDurationInMinutes} / 5 ) minutes -f ${LOCALSAVE}/${BlockName}-Scripts/logs_gathering.sh  &> /dev/null
+        Generate_Collect_Logs &> /dev/null
+        at now -f ${LOCALSAVE}/${BlockName}-Scripts/logs_gathering.sh  &> /dev/null
     fi
 done
 echo -e "[*] - check configuration file: ${LOCALSAVE}/${ConfFileName}.conf "
