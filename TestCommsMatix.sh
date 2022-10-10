@@ -305,7 +305,7 @@ generate_listeners () {
             #!/bin/bash
             mkdir -p ${REMOTESAVE}/Flags
             mkdir -p ${REMOTESAVE}/${BlockName}-LocalLogs
-            touch ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-{Actual,Expected,ALL}-TCP-ListenPorts.txt
+            touch ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-TCP-ListenPorts.txt
             FWStatus=\$(sudo systemctl show -p ActiveState firewalld | sed 's/ActiveState=//g')
             if [ \${FWStatus} = active ] 
             then
@@ -317,25 +317,17 @@ generate_listeners () {
             echo -e "Start Listening on tcp Ports ${ListenerIP}:${TCPPorts} " &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
             for Port in ${Expanded_TCPPorts}
             do
-                cat <<SUBTCPLSNR |at now
                 socat  /dev/null  tcp4:${ListenerIP}:\${Port},connect-timeout=0.1
-                exit_status=\\\$?
-                if [ \\\${exit_status} -ne 0 ]
+                exit_status=\$?
+                if [ \${exit_status} -ne 0 ]
                 then
                     echo -e tcp ${ListenerIP}:\${Port} was down , bringing it up for ${ListentDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
                     echo socat /dev/null TCP-L:\${Port},reuseaddr,fork,bind=${ListenerIP}|at now
                     echo port ${ListenerIP}:\${Port} tcp is running will be killed after ${ListentDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-                    echo pkill -9 -f '"socat /dev/null TCP-L:\${Port},reuseaddr,fork"'|at now +${ListentDurationInMinutes} minutes
+                    echo pkill -9 -f \"socat /dev/null TCP-L:\${Port},reuseaddr,fork\"|at now +${ListentDurationInMinutes} minutes
                 else
                     echo Port \${Port} on ${ListenerIP} was up , no change needed &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
                 fi
-                echo "tcp:${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-Actual-TCP-ListenPorts.txt
-SUBTCPLSNR
-                echo "tcp:${ListenerIP}:\${Port}" &>>  ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-Expected-TCP-ListenPorts.txt
-            done
-            until [ "\$(sort -n ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-Actual-TCP-ListenPorts.txt)" = "\$(sort -n ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-Expected-TCP-ListenPorts.txt)" ]
-            do
-                sleep 60
             done
             echo up >> ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-TCP-ListenPorts.txt
 TCPLSNR
@@ -343,7 +335,7 @@ TCPLSNR
             #!/bin/bash
             mkdir -p ${REMOTESAVE}/Flags
             mkdir -p ${REMOTESAVE}/${BlockName}-LocalLogs
-            touch ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-{Actual,Expected,ALL}-UDP-ListenPorts.txt
+            touch ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-UDP-ListenPorts.txt
             FWStatus=\$(sudo systemctl show -p ActiveState firewalld | sed 's/ActiveState=//g')
             if [ \${FWStatus} = active ]
             then
@@ -355,18 +347,10 @@ TCPLSNR
             echo -e "Start Listening on udp Ports ${ListenerIP}:${UDPPorts} " &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
             for Port in ${Expanded_UDPPorts}
             do
-                cat <<SUBUDPLSNR |at now
                 echo udp ${ListenerIP}:\${Port} was down , bringing it up for ${ListentDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
                 echo "socat UDP4-RECVFROM:\${Port},fork,bind=${ListenerIP} SYSTEM:'echo up'"|at now
                 echo port ${ListenerIP}:\${Port} udp is running will be killed after ${ListentDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
-                echo pkill -9 -f '"socat UDP4-RECVFROM:\${Port},fork"'|at now +${ListentDurationInMinutes} minutes
-                echo "udp:${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-Actual-UDP-ListenPorts.txt
-SUBUDPLSNR
-                echo "udp:${ListenerIP}:\${Port}" &>>  ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-Expected-UDP-ListenPorts.txt
-            done
-            until [ "\$(sort -n ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-Actual-UDP-ListenPorts.txt)" = "\$(sort -n ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-Expected-UDP-ListenPorts.txt)" ]
-            do
-                sleep 60
+                echo pkill -9 -f \"socat UDP4-RECVFROM:\${Port},fork\"|at now +${ListentDurationInMinutes} minutes
             done
             echo up >> ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-UDP-ListenPorts.txt
 UDPLSNR
@@ -432,11 +416,11 @@ UDPTSTR
 }
 Generate_Collect_Reports () {
 cat <<REPORTCOLLECTOR > ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}.sh
-scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/Flags/${BlockName}-${TesterIP}-AllTested ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ActualDoneList/ &> /dev/null
+scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/Flags/${BlockName}-${TesterIP}-AllTested ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ActualDoneList
 until [ "\$(sort -n ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ExpectedDoneList)" = "\$(sort -n ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ActualDoneList)" ]
 do
-    echo -e "Waiting for ${BlockName} => ${TesterIP} to finish testing sleep for 60 seconds  " >> ${LOCALSAVE}/${ConfFileName}.log
-    sleep 60
+    echo -e "Waiting for ${BlockName} => ${TesterIP} to finish testing sleep for 60 seconds " >> ${LOCALSAVE}/${ConfFileName}.log
+    sleep 70
     scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/Flags/${BlockName}-${TesterIP}-AllTested ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ActualDoneList 
 done
 scp -rP ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}:${REMOTESAVE}/${BlockName}-LocalReports ${LOCALSAVE}/${BlockName}-Reports/${TesterIP}
@@ -449,7 +433,7 @@ cat <<LOGCOLLECTOR > ${LOCALSAVE}/${BlockName}-Scripts/logs_gathering.sh
 until [ "\$(sort -n ${LOCALSAVE}/${BlockName}-Reports/ActualCollectedReports)" = "\$(sort -n ${LOCALSAVE}/${BlockName}-Reports/ExpectedCollectedReports )" ]
 do
     echo -e "Logs will be gathered once all testers reports gathered sleep for 120 seconds  " >> ${LOCALSAVE}/${ConfFileName}.log
-    sleep 120 
+    sleep 80 
 done
 for IP in ${ALLIPsUniq}
 do
@@ -719,12 +703,11 @@ do
                     scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${ListenerIP}:${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-TCP-ListenPorts.txt ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${ListenerIP}-ALL-TCP-Listen.txt &> /dev/null
                     until [ "\$(grep up ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${ListenerIP}-ALL-TCP-Listen.txt )" = "up" ]
                     do
-                        sleep 10
+                        sleep 60
                         scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${ListenerIP}:${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-TCP-ListenPorts.txt ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${ListenerIP}-ALL-TCP-Listen.txt &> /dev/null
-
                     done
                     echo -e "Tester:tcp:${TesterIP}=>${ListenerIP} ok" >> ${LOCALSAVE}/${ConfFileName}.log
-                    ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD} +\$(expr ${ListentDurationInMinutes} / 10  ) minutes   < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-tcp.sh &> /dev/null
+                    ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD}  < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-tcp.sh &> /dev/null
 TCPTASK
                 done
             done
@@ -748,11 +731,11 @@ TCPTASK
                     scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${ListenerIP}:${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-UDP-ListenPorts.txt ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${ListenerIP}-ALL-UDP-Listen.txt &> /dev/null
                     until [ "\$(grep up ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${ListenerIP}-ALL-UDP-Listen.txt )" = "up" ]
                     do
-                        sleep 10
+                        sleep 60
                         scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${ListenerIP}:${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-UDP-ListenPorts.txt ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${ListenerIP}-ALL-UDP-Listen.txt &> /dev/null
                     done
                     echo -e "Tester:udp:${TesterIP}=>${ListenerIP} ok" >> ${LOCALSAVE}/${ConfFileName}.log
-                    ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD} +\$(expr ${ListentDurationInMinutes} / 10  ) minutes  < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-udp.sh &> /dev/null
+                    ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-udp.sh &> /dev/null
 UDPTASK
                 done
             done
