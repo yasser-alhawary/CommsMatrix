@@ -209,21 +209,28 @@ Validate_Install_Dependencies () {
     echo -e "\t\t\tchecking for netcat/atd packages" 
     for PackageManager in "yum" "apt-get" 
     do
-        for Package in "at" "socat" "net-tools"
+        for Command in "at" "socat" "netstat"
         do
             which ${PackageManager} &> /dev/null
             exit_status=$?
             if [ $exit_status -eq 0 ]
             then
-                which ${Package} &> /dev/null 
+                which ${Command} &> /dev/null 
                 exit_status=$?
                 if [ ${exit_status} -eq 0 ]
                 then
-                    echo -e "\t\t\t\tpackage ${Package} is already installed" 
+                    echo -e "\t\t\t\tpackage ${Command} is already installed" 
                 else 
-                    sudo ${PackageManager} install -y -q  ${Package}  && echo -e "\t\t\t\t${Package} is not installed ,installing .."
+                    case ${Command} in 
+                        netstat)
+                            sudo ${PackageManager} install -y -q  net-tools  && echo -e "\t\t\t\tnet-tools is not installed ,installing .."
+                            ;;
+                        *)
+                            sudo ${PackageManager} install -y -q  ${Command}  && echo -e "\t\t\t\t${Command} is not installed ,installing .."
+                            ;;
+                    esac
                 fi
-                [ ${Package} = "at" ] &&  sudo  systemctl stop atd  ; sudo nohup atd -b 1 -l $(cat /proc/cpuinfo|grep processor|wc -l)  & &> /dev/null
+                [ ${Command} = "at" ] &&  sudo  systemctl stop atd  ; sudo nohup atd -b 1 -l $(cat /proc/cpuinfo|grep processor|wc -l)  & &> /dev/null
             fi
         done
     done
