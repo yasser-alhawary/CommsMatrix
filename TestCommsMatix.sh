@@ -209,7 +209,7 @@ Validate_Install_Dependencies () {
     echo -e "\t\t\tchecking for netcat/atd packages" 
     for PackageManager in "yum" "apt-get" 
     do
-        for Package in "at" "socat"
+        for Package in "at" "socat" "net-tools"
         do
             which ${PackageManager} &> /dev/null
             exit_status=$?
