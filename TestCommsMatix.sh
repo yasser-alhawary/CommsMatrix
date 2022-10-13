@@ -376,7 +376,9 @@ generate_testers () {
                         echo "\$(date +'%Y_%m_%d_%H_%M_%S:') tcp:${ListenerIP}:\${Port} is down" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt
                     fi
                 done
-                echo -e "BlockName,TesterIP,ListenerIP,Protocol,Total,Success,Failure\n${BlockName},${TesterIP},${ListenerIP},tcp,${Total_TCP},\$(grep -c  "is up" ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt),\$(grep -c  "is down" ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt)" >> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log
+                Success=\$(grep -c  "is up" ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt)
+                Failure=\$(expr ${Total_TCP} - \${Success} )
+                echo -e "BlockName,TesterIP,ListenerIP,Protocol,Total,Success,Failure\n${BlockName},${TesterIP},${ListenerIP},tcp,${Total_TCP},\${Success},\${Failure}" >> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log
                 echo  "${TesterIP}-${ListenerIP}-tcp" >> ${REMOTESAVE}/Flags/${BlockName}-${TesterIP}-AllTested
 TCPTSTR
             [ -z ${UDPPorts} ] || cat <<UDPTSTR > ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-udp.sh
@@ -390,20 +392,17 @@ TCPTSTR
                 unset result
                 result=\$( echo '' | socat -t 2 udp:${ListenerIP}:\${Port} STDIO) 
                 exit_status=\$?
-                if [ \${exit_status} -eq 0 ]
+                if [ \${exit_status} -eq 0 -a \${result} = "udp" ]
                 then
-                    if [ \${result} = "udp" ]
-                    then
-                        echo "\$(date +'%Y_%m_%d_%H_%M_%S:') udp:${ListenerIP}:\${Port} is up" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt
-                    else
-                        echo "\$(date +'%Y_%m_%d_%H_%M_%S:') udp:${ListenerIP}:\${Port} is down" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt
-                    fi
+                    echo "\$(date +'%Y_%m_%d_%H_%M_%S:') udp:${ListenerIP}:\${Port} is up" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt
                 else
-                        echo "\$(date +'%Y_%m_%d_%H_%M_%S:') udp:${ListenerIP}:\${Port} is down" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt
+                    echo "\$(date +'%Y_%m_%d_%H_%M_%S:') udp:${ListenerIP}:\${Port} is down" &>> ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt
                 fi
             done
+            Success=\$(grep -c  "is up" ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt)
+            Failure=\$(expr ${Total_UDP} - \${Success} )
+            echo -e "BlockName,TesterIP,ListenerIP,Protocol,Total,Success,Failure\n${BlockName},${TesterIP},${ListenerIP},udp,${Total_UDP},\${Success},\${Failure}" >> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log
             echo  "${TesterIP}-${ListenerIP}-udp" >> ${REMOTESAVE}/Flags/${BlockName}-${TesterIP}-AllTested
-            echo -e "BlockName,TesterIP,ListenerIP,Protocol,Total,Success,Failure\n${BlockName},${TesterIP},${ListenerIP},udp,${Total_UDP},\$(grep -c  "is up" ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt),\$(grep -c  "is down" ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt)" >> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log
 UDPTSTR
 }
 Generate_Collect_Reports () {
