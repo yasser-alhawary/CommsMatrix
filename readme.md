@@ -116,7 +116,7 @@ The Configuration File:
 
         [Block1]
 
-        ListentDurationInMinutes: 150
+        ListenDurationInMinutes: 150
         User: ansible
         PortsUDP:     1000-1100,200,2000-2100
         PortsTCP: 1-100,110,300-400
