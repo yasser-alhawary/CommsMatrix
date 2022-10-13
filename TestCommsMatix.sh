@@ -4,9 +4,9 @@ CONF_EXAMPLE="
 [Default]
 Mode: uni
 User: ansible
-ListentDurationInMinutes: 100
+ListenDurationInMinutes: 100
 [Block1]
-ListentDurationInMinutes: 10
+ListenDurationInMinutes: 10
 User: root
 TCPPorts:1001-1010,2000,3031-3040
 UDPPorts:4001-4010,5000,6011-6020
@@ -152,7 +152,7 @@ Validate_IPS () {
 	done
     echo -e "\t\tIP Range ${1}: ok" |tee -a ${LOCALSAVE}/${ConfFileName}.log
 }
-Validate_ListentDurationInMinutes () {
+Validate_ListenDurationInMinutes () {
 			if [[ $1 == ?(-)+([0-9]) ]] 
 			then
 				if [ $1 -le 0 ]
@@ -228,9 +228,7 @@ Validate_Install_Dependencies () {
         done
     done
 }
-
-
-#3-Expand ips function and also exclude ips that are unreachable or is not root or sudoer nopasswd on it , logged
+#3-Expand ips function 
 expand_ips() {   
     unset Expanded_IPs
     for IPRange in $(echo $1|cut -d ':' -f2 |tr ',' ' ')
@@ -309,27 +307,27 @@ generate_listeners () {
             FWStatus=\$(sudo systemctl show -p ActiveState firewalld | sed 's/ActiveState=//g')
             if [ \${FWStatus} = active ] 
             then
-                echo -e "\$(date +'%Y_%m_%d_%H_%M_%S:') Firewall on ${ListenerIP} was up: stop for ${ListentDurationInMinutes} Minutes"  &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-                sudo systemctl stop firewalld && echo 'sudo systemctl start firewalld ' |at now +${ListentDurationInMinutes} minutes
+                echo -e "\$(date +'%Y_%m_%d_%H_%M_%S:') Firewall on ${ListenerIP} was up: stop for ${ListenDurationInMinutes} Minutes"  &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
+                sudo systemctl stop firewalld && echo 'sudo systemctl start firewalld ' |at now +${ListenDurationInMinutes} minutes
             else
                 echo -e "\$(date +'%Y_%m_%d_%H_%M_%S:') Firewall on ${ListenerIP} was down: no change needed" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
             fi
             echo -e "\$(date +'%Y_%m_%d_%H_%M_%S:') Start Listening on tcp Ports ${ListenerIP}:${TCPPorts} " &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
             for Port in ${Expanded_TCPPorts}
             do
-                socat  tcp4:${ListenerIP}:\${Port},connect-timeout=0.1 /dev/null
+                netstat -ntlp|egrep -q "${ListenerIP}:\${Port}|0.0.0.0:\${Port}"
                 exit_status=\$?
                 if [ \${exit_status} -ne 0 ]
                 then
-                    echo -e \$(date +'%Y_%m_%d_%H_%M_%S:') tcp ${ListenerIP}:\${Port} was down , bringing it up for ${ListentDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-                    echo "socat TCP-L:\${Port},reuseaddr,fork,bind=${ListenerIP} SYSTEM:'echo tcp:${BlockName}'"|at now
-                    echo \$(date +'%Y_%m_%d_%H_%M_%S:') port ${ListenerIP}:\${Port} tcp is running will be killed after ${ListentDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
+                    echo -e \$(date +'%Y_%m_%d_%H_%M_%S:') tcp ${ListenerIP}:\${Port} was down , bringing it up for ${ListenDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
+                    echo "socat TCP-L:\${Port},reuseaddr,fork,bind=${ListenerIP} SYSTEM:'echo tcp:${ConfFileName}-${ExecutionDate}-${BlockName}'"|at now
+                    echo \$(date +'%Y_%m_%d_%H_%M_%S:') port ${ListenerIP}:\${Port} tcp is running will be killed after ${ListenDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
                 else
-                    echo \$(date +'%Y_%m_%d_%H_%M_%S:') Port \${Port} on ${ListenerIP} was up , no change needed &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
+                    echo \$(date +'%Y_%m_%d_%H_%M_%S:') Port \${Port}:tcp on ${ListenerIP} was up , no change needed &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
                 fi
             done
             echo up >> ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-TCP-ListenPorts.txt
-            echo pkill -9 -f \"SYSTEM:echo tcp:${BlockName}\"|at now +${ListentDurationInMinutes} minutes
+            echo pkill -9 -f \"SYSTEM:echo tcp:${ConfFileName}-${ExecutionDate}-${BlockName}\"|at now +${ListenDurationInMinutes} minutes
 
 TCPLSNR
             [ -z ${UDPPorts} ] || cat <<UDPLSNR > ${LOCALSAVE}/${BlockName}-Scripts/Listeners/${ListenerIP}-udp.sh
@@ -340,20 +338,26 @@ TCPLSNR
             FWStatus=\$(sudo systemctl show -p ActiveState firewalld | sed 's/ActiveState=//g')
             if [ \${FWStatus} = active ]
             then
-                echo -e "\$(date +'%Y_%m_%d_%H_%M_%S:') Firewall on ${ListenerIP} was up: stop for ${ListentDurationInMinutes} Minutes"  &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
-                sudo systemctl stop firewalld && echo 'sudo systemctl start firewalld ' |at now +${ListentDurationInMinutes} minutes
+                echo -e "\$(date +'%Y_%m_%d_%H_%M_%S:') Firewall on ${ListenerIP} was up: stop for ${ListenDurationInMinutes} Minutes"  &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
+                sudo systemctl stop firewalld && echo 'sudo systemctl start firewalld ' |at now +${ListenDurationInMinutes} minutes
             else
                 echo -e "\$(date +'%Y_%m_%d_%H_%M_%S:') Firewall on ${ListenerIP} was down: no change needed" &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
             fi
             echo -e "\$(date +'%Y_%m_%d_%H_%M_%S:') Start Listening on udp Ports ${ListenerIP}:${UDPPorts} " &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
             for Port in ${Expanded_UDPPorts}
             do
-                echo \$(date +'%Y_%m_%d_%H_%M_%S:') udp ${ListenerIP}:\${Port} was down , bringing it up for ${ListentDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
-                echo "socat UDP4-RECVFROM:\${Port},fork,bind=${ListenerIP} SYSTEM:'echo udp:${BlockName}'"|at now
-                echo \$(date +'%Y_%m_%d_%H_%M_%S:') port ${ListenerIP}:\${Port} udp is running will be killed after ${ListentDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
+                netstat -ntlp|egrep -q "${ListenerIP}:\${Port}|0.0.0.0:\${Port}"
+                if [ \${exit_status} -ne 0 ]
+                then
+                    echo \$(date +'%Y_%m_%d_%H_%M_%S:') udp ${ListenerIP}:\${Port} was down , bringing it up for ${ListenDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
+                    echo "socat UDP4-RECVFROM:\${Port},fork,bind=${ListenerIP} SYSTEM:'echo udp:${ConfFileName}-${ExecutionDate}-${BlockName}'"|at now
+                    echo \$(date +'%Y_%m_%d_%H_%M_%S:') port ${ListenerIP}:\${Port} udp is running will be killed after ${ListenDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
+                else
+                    echo \$(date +'%Y_%m_%d_%H_%M_%S:') Port \${Port}:udp on ${ListenerIP} was up , no change needed will be ignored during testing &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
+                fi
             done
             echo up >> ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-UDP-ListenPorts.txt
-            echo pkill -9 -f \"SYSTEM:echo udp:${BlockName}\"|at now +${ListentDurationInMinutes} minutes
+            echo pkill -9 -f \"SYSTEM:echo udp:${ConfFileName}-${ExecutionDate}-${BlockName}\"|at now +${ListenDurationInMinutes} minutes
 UDPLSNR
 }
 generate_testers () {
@@ -488,7 +492,7 @@ do
 			for BlockAttributeName in ${BlockAttributesNames}
 			do
 				case ${BlockAttributeName} in
-					User|Mode|ListentDurationInMinutes)
+					User|Mode|ListenDurationInMinutes)
                         unset BlockAttributeContent
             	        BlockAttributeContent=$(echo "${BlockContent}"|grep -i ${BlockAttributeName}|cut -d':' -f2)
 						case ${BlockAttributeName} in
@@ -498,8 +502,8 @@ do
 							Mode)
 								echo "Default_Mode:${BlockAttributeContent}" >> ${CONFPATH}
 							;;
-							ListentDurationInMinutes)
-								echo "Default_ListentDurationInMinutes:${BlockAttributeContent}" >> ${CONFPATH}
+							ListenDurationInMinutes)
+								echo "Default_ListenDurationInMinutes:${BlockAttributeContent}" >> ${CONFPATH}
 							;;
 						esac
 					    ;;
@@ -513,9 +517,9 @@ do
 			for BlockAttributeName in ${BlockAttributesNames}
 			do
 				case ${BlockAttributeName} in
-					User|Mode|ListentDurationInMinutes|TCPPorts|UDPPorts|IPs|TestersIPs|ListenersIPs)
+					User|Mode|ListenDurationInMinutes|TCPPorts|UDPPorts|IPs|TestersIPs|ListenersIPs)
 						case ${BlockAttributeName} in
-							User|Mode|ListentDurationInMinutes|TCPPorts|UDPPorts)
+							User|Mode|ListenDurationInMinutes|TCPPorts|UDPPorts)
                                 unset BlockAttributeContent
     			                BlockAttributeContent=$(echo "${BlockContent}"|grep -i ${BlockAttributeName}|cut -d':' -f2)
                                 case ${BlockAttributeName} in
@@ -525,8 +529,8 @@ do
                                     Mode)
                                         echo "${BlockName}_Mode:${BlockAttributeContent}" >> ${CONFPATH}
                                     ;;
-                                    ListentDurationInMinutes)
-                                        echo "${BlockName}_ListentDurationInMinutes:${BlockAttributeContent}" >> ${CONFPATH}
+                                    ListenDurationInMinutes)
+                                        echo "${BlockName}_ListenDurationInMinutes:${BlockAttributeContent}" >> ${CONFPATH}
                                     ;;
                                     TCPPorts)
                                         echo "${BlockName}_TCPPorts:${BlockAttributeContent}" >> ${CONFPATH}
@@ -568,7 +572,7 @@ for BlockName in ${BlocksNames}
 do
 	if [ ${BlockName} != "Default" ]
 	then 
-		for BlockAttributeName in User Mode ListentDurationInMinutes
+		for BlockAttributeName in User Mode ListenDurationInMinutes
 		do
 			grep -q ${BlockName}_${BlockAttributeName} ${CONFPATH}
             exit_status=$? 
@@ -608,7 +612,7 @@ do
 done
 #validate the attributes values
 #modes values  already validated in previous check
-#ListentDurationInMinutes  value must be an integer
+#ListenDurationInMinutes  value must be an integer
 #ips match ips regex
 #ports integer from 0 - 65536
 #validate remote ips ssh access and sudo no passwd privilege
@@ -618,7 +622,7 @@ echo -e "[*] - validate blocks attributes values" |tee -a ${LOCALSAVE}/${ConfFil
 for BlockName in ${BlocksNames}
 do  
     echo -e "\t${BlockName}:" |tee -a ${LOCALSAVE}/${ConfFileName}.log
-    grep -q ${BlockName}_ListentDurationInMinutes ${CONFPATH} 	&& 	ListentDurationInMinutes=$(grep ${BlockName}_ListentDurationInMinutes ${CONFPATH}|cut -d ':' -f2) && Validate_ListentDurationInMinutes ${ListentDurationInMinutes} ListentDurationInMinutes
+    grep -q ${BlockName}_ListenDurationInMinutes ${CONFPATH} 	&& 	ListenDurationInMinutes=$(grep ${BlockName}_ListenDurationInMinutes ${CONFPATH}|cut -d ':' -f2) && Validate_ListenDurationInMinutes ${ListenDurationInMinutes} ListenDurationInMinutes
     grep -q ${BlockName}_TCPPorts ${CONFPATH}	 	&&  TCPPorts=$( grep ${BlockName}_TCPPorts ${CONFPATH}|cut -d ':' -f2 ) 		&& Validate_Ports ${TCPPorts} TCPPorts
     grep -q ${BlockName}_UDPPorts ${CONFPATH} 		&&  UDPPorts=$( grep ${BlockName}_UDPPorts ${CONFPATH}|cut -d ':' -f2 ) 		&& Validate_Ports ${UDPPorts} UDPPorts
     grep -q ${BlockName}_IPs ${CONFPATH} 			&&  IPs=$(grep ${BlockName}_IPs ${CONFPATH}|cut -d ':' -f2) 					&& Validate_IPS ${IPs}  IPs
@@ -648,11 +652,11 @@ do
     if [ ${BlockName} != Default ]
     then 
         echo -e "\t\033[0;32m${BlockName}\033[0m:" |tee -a ${LOCALSAVE}/${ConfFileName}.log
-        unset User ListentDurationInMinutes Mode IPs TestersIPs ListenersIPs TCPPorts UDPPorts Expanded_TestersIPs Expanded_ListenersIPs
+        unset User ListenDurationInMinutes Mode IPs TestersIPs ListenersIPs TCPPorts UDPPorts Expanded_TestersIPs Expanded_ListenersIPs
         mkdir -p ${LOCALSAVE}/${BlockName}-Scripts/{Listeners,Testers,ReportsGathering}/
         mkdir -p ${LOCALSAVE}/${BlockName}-{Reports,Logs}
         User=$(grep ${BlockName}_User ${CONFPATH}|cut -d':' -f2)
-        ListentDurationInMinutes=$(grep ${BlockName}_ListentDurationInMinutes ${CONFPATH}|cut -d':' -f2)
+        ListenDurationInMinutes=$(grep ${BlockName}_ListenDurationInMinutes ${CONFPATH}|cut -d':' -f2)
         grep -q ${BlockName}_TCPPorts ${CONFPATH} &&  TCPPorts=$( grep ${BlockName}_TCPPorts ${CONFPATH}|cut -d ':' -f2 )
         grep -q ${BlockName}_UDPPorts ${CONFPATH} &&  UDPPorts=$( grep ${BlockName}_UDPPorts ${CONFPATH}|cut -d ':' -f2 )
         Mode=$(grep ${BlockName}_Mode ${CONFPATH}|cut -d':' -f2)
@@ -738,10 +742,10 @@ for BlockName in ${BlocksNames}
 do
     if [ ${BlockName} != Default ]
     then             
-        echo -e "\t\033[0;32m${BlockName}\033[0m:interval=$(expr ${ListentDurationInMinutes} \* 6) seconds" |tee -a ${LOCALSAVE}/${ConfFileName}.log
-        unset User ListentDurationInMinutes Mode IPs TestersIPs ListenersIPs TCPPorts UDPPorts Expanded_TestersIPs Expanded_ListenersIPs
+        echo -e "\t\033[0;32m${BlockName}\033[0m:interval=$(expr ${ListenDurationInMinutes} \* 6) seconds" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+        unset User ListenDurationInMinutes Mode IPs TestersIPs ListenersIPs TCPPorts UDPPorts Expanded_TestersIPs Expanded_ListenersIPs
         User=$(grep ${BlockName}_User ${CONFPATH}|cut -d':' -f2)
-        ListentDurationInMinutes=$(grep ${BlockName}_ListentDurationInMinutes ${CONFPATH}|cut -d':' -f2)
+        ListenDurationInMinutes=$(grep ${BlockName}_ListenDurationInMinutes ${CONFPATH}|cut -d':' -f2)
         Mode=$(grep ${BlockName}_Mode ${CONFPATH}|cut -d':' -f2)
         [ ${Mode} = bi ] && TestersIPs=$(grep ${BlockName}_IPs ${CONFPATH}|cut -d':' -f2) || TestersIPs=$(grep ${BlockName}_TestersIPs ${CONFPATH}|cut -d':' -f2)
         [ ${Mode} = bi ] && ListenersIPs=$(grep ${BlockName}_IPs ${CONFPATH}|cut -d':' -f2) || ListenersIPs=$(grep ${BlockName}_ListenersIPs ${CONFPATH}|cut -d':' -f2)
