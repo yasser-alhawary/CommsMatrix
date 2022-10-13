@@ -315,15 +315,14 @@ generate_listeners () {
             echo -e "\$(date +'%Y_%m_%d_%H_%M_%S:') Start Listening on tcp Ports ${ListenerIP}:${TCPPorts} " &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
             for Port in ${Expanded_TCPPorts}
             do
-                netstat -ntlp|egrep -q "${ListenerIP}:\${Port}|0.0.0.0:\${Port}"
+                netstat -ntlp|egrep -q "${ListenerIP}:\${Port} |0.0.0.0:\${Port} "
                 exit_status=\$?
                 if [ \${exit_status} -ne 0 ]
                 then
-                    echo -e \$(date +'%Y_%m_%d_%H_%M_%S:') tcp ${ListenerIP}:\${Port} was down , bringing it up for ${ListenDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
+                    echo -e \$(date +'%Y_%m_%d_%H_%M_%S:') ${ListenerIP}:\${Port}:tcp was down , bringing it up for ${ListenDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
                     echo "socat TCP-L:\${Port},reuseaddr,fork,bind=${ListenerIP} SYSTEM:'echo tcp:${ConfFileName}-${ExecutionDate}-${BlockName}'"|at now
-                    echo \$(date +'%Y_%m_%d_%H_%M_%S:') port ${ListenerIP}:\${Port} tcp is running will be killed after ${ListenDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
                 else
-                    echo \$(date +'%Y_%m_%d_%H_%M_%S:') Port \${Port}:tcp on ${ListenerIP} was up , no change needed &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
+                    echo \$(date +'%Y_%m_%d_%H_%M_%S:') ${ListenerIP}:\${Port}:tcp was up , no change needed &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
                 fi
             done
             echo up >> ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-TCP-ListenPorts.txt
@@ -346,15 +345,14 @@ TCPLSNR
             echo -e "\$(date +'%Y_%m_%d_%H_%M_%S:') Start Listening on udp Ports ${ListenerIP}:${UDPPorts} " &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
             for Port in ${Expanded_UDPPorts}
             do
-                netstat -ntlp|egrep -q "${ListenerIP}:\${Port}|0.0.0.0:\${Port}"
+                netstat -nulp|egrep -q "${ListenerIP}:\${Port} |0.0.0.0:\${Port} "
                 if [ \${exit_status} -ne 0 ]
                 then
-                    echo \$(date +'%Y_%m_%d_%H_%M_%S:') udp ${ListenerIP}:\${Port} was down , bringing it up for ${ListenDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
-                    echo "socat UDP4-RECVFROM:\${Port},fork,bind=${ListenerIP} SYSTEM:'echo udp:${ConfFileName}-${ExecutionDate}-${BlockName}'"|at now
-                    echo \$(date +'%Y_%m_%d_%H_%M_%S:') port ${ListenerIP}:\${Port} udp is running will be killed after ${ListenDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
+                    echo \$(date +'%Y_%m_%d_%H_%M_%S:') ${ListenerIP}:\${Port}:udp was down , bringing it up for ${ListenDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
                 else
-                    echo \$(date +'%Y_%m_%d_%H_%M_%S:') Port \${Port}:udp on ${ListenerIP} was up , no change needed will be ignored during testing &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
+                    echo \$(date +'%Y_%m_%d_%H_%M_%S:') ${ListenerIP}:\${Port}:udp was up , will run over current port for ${ListenDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-udp.log
                 fi
+                echo "socat UDP4-RECVFROM:\${Port},reuseaddr,fork,bind=${ListenerIP} SYSTEM:'echo udp:${ConfFileName}-${ExecutionDate}-${BlockName}'"|at now
             done
             echo up >> ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-UDP-ListenPorts.txt
             echo pkill -9 -f \"SYSTEM:echo udp:${ConfFileName}-${ExecutionDate}-${BlockName}\"|at now +${ListenDurationInMinutes} minutes
