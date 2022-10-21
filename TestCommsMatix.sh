@@ -61,12 +61,6 @@ Raise_Error () {
     esac
     sudo kill -9 ${TOP_PID}
 }
-if [ -z $1 ] 
-then 
-    Raise_Error 1 |tee -a ${LOCALSAVE}/${ConfFileName}.log
-else 
-    echo -e "\tConfiguration File : ok"| tee -a ${LOCALSAVE}/${ConfFileName}.log
-fi
 ####
 unset ConfFileName ConfFileContent BlocksNames ExecutionDate LOCALSAVE CONFPATH
 ConfFileContent=$(egrep -v '^$|^#' $1|tr -d ' '|sed 's/\[/EOB\n\[/g'|sed '1d'|sed -e '$a\EOB')
@@ -445,17 +439,23 @@ tail -n 1  ${LOCALSAVE}/${BlockName}-Logs/*/*-*-*.log|egrep -v '=|^$' >> ${LOCAL
 LOGCOLLECTOR
 }
 ######################Start######################
-#essential Validation 
-#validate Linux shell and configuration file provided
 mkdir -p ${LOCALSAVE}
 echo -e "[*] - Start Basic Validation"|tee -a ${LOCALSAVE}/${ConfFileName}.log
-
+#essential Validation 
+#validate Linux shell and configuration file provided
 if [ $(uname -s) != "Linux" ] 
 then 
     Raise_Error 2 |tee -a ${LOCALSAVE}/${ConfFileName}.log
 else
     echo -e "\tCurrent Shell : ok" |tee -a ${LOCALSAVE}/${ConfFileName}.log
 fi
+if [ -z $1 ] 
+then 
+    Raise_Error 1 |tee -a ${LOCALSAVE}/${ConfFileName}.log
+else 
+    echo -e "\tConfiguration File : ok"| tee -a ${LOCALSAVE}/${ConfFileName}.log
+fi
+
 #validate no duplicate BlockNames/BlockAttributesNames
 echo -e "\tChecking Duplicate Block Names:" |tee -a ${LOCALSAVE}/${ConfFileName}.log
 for BlockName in ${BlocksNames}
@@ -746,7 +746,7 @@ for BlockName in ${BlocksNames}
 do
     if [ ${BlockName} != Default ]
     then             
-        echo -e "\t\033[0;32m${BlockName}\033[0m:interval=$(expr ${ListenDurationInMinutes} \* 6) seconds" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+        echo -e "\t\033[0;32m${BlockName}\033[0m:" |tee -a ${LOCALSAVE}/${ConfFileName}.log
         unset User ListenDurationInMinutes Mode IPs TestersIPs ListenersIPs TCPPorts UDPPorts Expanded_TestersIPs Expanded_ListenersIPs
         User=$(grep ${BlockName}_User ${CONFPATH}|cut -d':' -f2)
         ListenDurationInMinutes=$(grep ${BlockName}_ListenDurationInMinutes ${CONFPATH}|cut -d':' -f2)
