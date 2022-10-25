@@ -237,16 +237,16 @@ Validate_Install_Dependencies () {
                 then
                     echo -e "\t\t\t\tpackage at is already installed" 
                 else 
-                    sudo ${PackageManager} install -y -q  at && echo -e "\t\t\t\tat is not installed ,installing .."
+                    sudo ${PackageManager} install -y -q  at &> /dev/null && echo -e "\t\t\t\tat is not installed ,installing .." || echo -e "\t\t\t\tat can not be installed"
                 fi
                 sudo  systemctl stop atd  ; sudo nohup atd -b 1 -l $(cat /proc/cpuinfo|grep processor|wc -l)  & &> /dev/null
             fi
         done
     else
-        echo -e "\t\t\tchecking for  ${TCPPackage}/atd/netstat packages" 
+        echo -e "\t\t\tchecking for  ${2}/atd/netstat packages" 
         for PackageManager in "yum" "apt-get" 
         do
-            for Command in "at"  ${TCPPackage} "netstat"
+            for Command in "at"  ${2} "netstat"
             do
                 which ${PackageManager} &> /dev/null
                 exit_status=$?
@@ -260,10 +260,10 @@ Validate_Install_Dependencies () {
                     else 
                         case ${Command} in 
                             netstat)
-                                sudo ${PackageManager} install -y -q  net-tools  && echo -e "\t\t\t\tnet-tools is not installed ,installing .."
+                                sudo ${PackageManager} install -y -q  net-tools &> /dev/null && echo -e "\t\t\t\tnet-tools is not installed ,installing .." || echo -e "\t\t\t\tnet-tools can not be installed"
                                 ;;
                             *)
-                                sudo ${PackageManager} install -y -q  ${Command}  && echo -e "\t\t\t\t${Command} is not installed ,installing .."
+                                sudo ${PackageManager} install -y -q  ${Command} &> /dev/null && echo -e "\t\t\t\t${Command} is not installed ,installing .." || echo -e "\t\t\t\t${Command} can not be installed"
                                 ;;
                         esac
                     fi
@@ -441,6 +441,7 @@ generate_testers () {
                     then
                         socat  /dev/null  tcp4:${ListenerIP}:\${Port},connect-timeout=2
                     elif [ ${TCPPackage} = nc ]
+                    then
                         nc -vz -w 2 ${ListenerIP} \${Port}
                     fi
                     exit_status=\$?
@@ -594,9 +595,9 @@ do
 			for BlockAttributeName in ${BlockAttributesNames}
 			do
 				case ${BlockAttributeName} in
-					User|Mode|ListenDurationInMinutes|TCPPackage|TCPTestOnly|TCPPorts|UDPPorts|IPs|TestersIPs|ListenersIPs)
+					User|Mode|ListenDurationInMinutes|TCPPorts|UDPPorts|TCPPackage|TCPTestOnly|IPs|TestersIPs|ListenersIPs)
 						case ${BlockAttributeName} in
-							User|Mode|ListenDurationInMinutes|TCPPorts|UDPPorts)
+							User|Mode|ListenDurationInMinutes|TCPPorts|UDPPorts|TCPPackage|TCPTestOnly)
                                 unset BlockAttributeContent
     			                BlockAttributeContent=$(echo "${BlockContent}"|grep -i ${BlockAttributeName}|cut -d':' -f2)
                                 case ${BlockAttributeName} in
@@ -608,18 +609,18 @@ do
                                     ;;
                                     ListenDurationInMinutes)
                                         echo "${BlockName}_ListenDurationInMinutes:${BlockAttributeContent}" >> ${CONFPATH}
-                                    ;;
-                                    TCPPackage)
-                                        echo "${BlockName}_TCPPackage:${BlockAttributeContent}" >> ${CONFPATH}
-                                    ;;
-                                    TCPTestOnly)
-                                        echo "${BlockName}_TCPTestOnly:${BlockAttributeContent}" >> ${CONFPATH}
                                     ;;                                    
                                     TCPPorts)
                                         echo "${BlockName}_TCPPorts:${BlockAttributeContent}" >> ${CONFPATH}
                                     ;;
                                     UDPPorts)
                                         echo "${BlockName}_UDPPorts:${BlockAttributeContent}" >> ${CONFPATH}
+                                    ;;
+                                    TCPPackage)
+                                        echo "${BlockName}_TCPPackage:${BlockAttributeContent}" >> ${CONFPATH}
+                                    ;;
+                                    TCPTestOnly)
+                                        echo "${BlockName}_TCPTestOnly:${BlockAttributeContent}" >> ${CONFPATH}
                                     ;;
                                 esac
 						        ;;
@@ -692,12 +693,12 @@ do
                 Raise_Error 5 ${Mode} "mode should be uni/bi"
 			    ;;
 		esac
-        unset TCPPackage UDPPorts
+        unset TCPPackage UDPPorts TCPTestOnly
         TCPPackage=$( grep ${BlockName}_TCPPackage ${CONFPATH}|cut -d ':' -f2 )
         UDPPorts=$( grep ${BlockName}_UDPPorts ${CONFPATH}|cut -d ':' -f2 )
-        TCPTestOnly==$( grep ${BlockName}_TCPTestOnly ${CONFPATH}|cut -d ':' -f2 )
-        [ ${TCPPackage} = nc ] && ! [ -z ${UDPPorts} ] && Raise_Error 6 "nc" "nc can not be used to test udp ports" 
-        [ ${TCPTestOnly} = nc ] && ! [ -z ${UDPPorts} ] && Raise_Error 6 "TCPTestOnly is true" "to test udp remote access to listeners" 
+        TCPTestOnly=$( grep ${BlockName}_TCPTestOnly ${CONFPATH}|cut -d ':' -f2 )
+        [ ${TCPPackage} = nc ] && ! [ -z ${UDPPorts} ] && Raise_Error 5 "nc" "nc can not be used to test udp ports" 
+        [ ${TCPTestOnly} = true ] && ! [ -z ${UDPPorts} ] && Raise_Error 5 "TCPTestOnly:true" "UDP Test require custom listener" 
 
 	fi
 done
@@ -738,14 +739,14 @@ do
             for IP in ${ALLIPsUniq}
             do
                     Validate_Access ${IP} 
-                    ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${IP} "$(typeset -f Validate_Install_Dependencies);  Validate_Install_Dependencies ${IP}" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+                    ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${IP} "$(typeset -f Validate_Install_Dependencies);  Validate_Install_Dependencies ${IP} ${TCPPackage}" |tee -a ${LOCALSAVE}/${ConfFileName}.log
             done
         elif [ ${TCPTestOnly} = true ]
         then
             for TesterIP in ${Expanded_TestersIPs}
             do
                     Validate_Access ${TesterIP} 
-                    ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${TesterIP} "$(typeset -f Validate_Install_Dependencies);  Validate_Install_Dependencies ${TesterIP}" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+                    ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${TesterIP} "$(typeset -f Validate_Install_Dependencies);  Validate_Install_Dependencies ${TesterIP} ${TCPPackage}" |tee -a ${LOCALSAVE}/${ConfFileName}.log
             done
         fi
     fi
