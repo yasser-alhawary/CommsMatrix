@@ -5,6 +5,8 @@ CONF_EXAMPLE="
 Mode: uni
 User: ansible
 ListenDurationInMinutes: 100
+TCPTestOnly: false
+TCPPackage: socat
 [Block1]
 ListenDurationInMinutes: 10
 User: root
@@ -19,11 +21,23 @@ ListenersIPs:
 [block 2]
 Mode:bi
 TCPPorts:1001-1010,2000,3031-3040
+TCPPackage: nc
 IPs:
 192.168.1.2
 192.168.1.3-192.168.1.40
 192.168.1.44
-192.168.1.50-192.168.1.55"
+192.168.1.50-192.168.1.55
+[Block3]
+ListenDurationInMinutes: 20
+User: root
+TCPPorts:1001-1010,2000,3031-3040
+TCPTestOnly: true
+TestersIPs:
+192.168.2.196
+ListenersIPs:
+192.168.2.2
+192.168.2.3-192.168.1.220
+192.168.2.224"
 # log error function
 Raise_Error () {
     echo -en "\t\033[0;31mError\033[0m:\t"
@@ -61,6 +75,21 @@ Raise_Error () {
     esac
     sudo kill -9 ${TOP_PID}
 }
+#essential Validation 
+#validate Linux shell and configuration file provided
+if [ -z $1 ] 
+then 
+    Raise_Error 1
+else 
+    echo -e "\tConfiguration File : ok"
+fi
+
+if [ $(uname -s) != "Linux" ] 
+then 
+    Raise_Error 2
+else
+    echo -e "\tCurrent Shell : ok"
+fi
 ####
 unset ConfFileName ConfFileContent BlocksNames ExecutionDate LOCALSAVE CONFPATH
 ConfFileContent=$(egrep -v '^$|^#' $1|tr -d ' '|sed 's/\[/EOB\n\[/g'|sed '1d'|sed -e '$a\EOB')
@@ -70,6 +99,7 @@ ExecutionDate=$(date  +"%Y_%m_%d_%H_%M_%S")
 LOCALSAVE="${HOME}/CommsMatrix/${ConfFileName}-${ExecutionDate}"
 CONFPATH="${LOCALSAVE}/${ConfFileName}.conf"
 SSH_PORT=22
+mkdir -p ${LOCALSAVE}
 ####functions to be called later#####
 #1-Validation functions
 Validate_Ports() {
@@ -161,7 +191,14 @@ Validate_ListenDurationInMinutes () {
 }
 Validate_Access(){
     echo -e "\t\t${1} Access/Authorization:" | tee -a ${LOCALSAVE}/${ConfFileName}.log
-    socat  /dev/null  tcp4:${1}:${SSH_PORT}  &> /dev/null
+    which socat &> /dev/null
+    exit_status=$?
+    if [ $exit_status -eq 0 ]
+    then
+        socat  /dev/null  tcp4:${1}:${SSH_PORT},connect-timeout=2  &> /dev/null
+    else
+        nc -w 2 -vz $1 ${SSH_PORT} &> /dev/null
+    fi
     exit_status=$?
     if [ ${exit_status} -ne 0 ]  
     then
@@ -186,6 +223,55 @@ Validate_Access(){
     fi
 }
 Validate_Install_Dependencies () {
+    if [ $1 = localhost ]
+    then
+        for PackageManager in "yum" "apt-get" 
+        do
+            which ${PackageManager} &> /dev/null
+            exit_status=$?
+            if [ $exit_status -eq 0 ]
+            then
+                which at &> /dev/null 
+                exit_status=$?
+                if [ ${exit_status} -eq 0 ]
+                then
+                    echo -e "\t\t\t\tpackage at is already installed" 
+                else 
+                    sudo ${PackageManager} install -y -q  at && echo -e "\t\t\t\tat is not installed ,installing .."
+                fi
+                sudo  systemctl stop atd  ; sudo nohup atd -b 1 -l $(cat /proc/cpuinfo|grep processor|wc -l)  & &> /dev/null
+            fi
+        done
+    else
+        echo -e "\t\t\tchecking for  ${TCPPackage}/atd/netstat packages" 
+        for PackageManager in "yum" "apt-get" 
+        do
+            for Command in "at"  ${TCPPackage} "netstat"
+            do
+                which ${PackageManager} &> /dev/null
+                exit_status=$?
+                if [ $exit_status -eq 0 ]
+                then
+                    which ${Command} &> /dev/null 
+                    exit_status=$?
+                    if [ ${exit_status} -eq 0 ]
+                    then
+                        echo -e "\t\t\t\tpackage ${Command} is already installed" 
+                    else 
+                        case ${Command} in 
+                            netstat)
+                                sudo ${PackageManager} install -y -q  net-tools  && echo -e "\t\t\t\tnet-tools is not installed ,installing .."
+                                ;;
+                            *)
+                                sudo ${PackageManager} install -y -q  ${Command}  && echo -e "\t\t\t\t${Command} is not installed ,installing .."
+                                ;;
+                        esac
+                    fi
+                    [ ${Command} = "at" ] &&  sudo  systemctl stop atd  ; sudo nohup atd -b 1 -l $(cat /proc/cpuinfo|grep processor|wc -l)  & &> /dev/null
+                fi
+            done
+        done
+    fi
     [ $1 = localhost ] &&    echo -e "\t${1} Dependencies: "  ||     echo -e "\t\t${1} Dependencies:"
     if  [ -e /bin/dash ] 
     then
@@ -200,34 +286,6 @@ Validate_Install_Dependencies () {
     else
             echo -e "\t\t\tatd service default shell is bash no change needed" 
     fi
-    echo -e "\t\t\tchecking for netcat/atd packages" 
-    for PackageManager in "yum" "apt-get" 
-    do
-        for Command in "at" "socat" "netstat"
-        do
-            which ${PackageManager} &> /dev/null
-            exit_status=$?
-            if [ $exit_status -eq 0 ]
-            then
-                which ${Command} &> /dev/null 
-                exit_status=$?
-                if [ ${exit_status} -eq 0 ]
-                then
-                    echo -e "\t\t\t\tpackage ${Command} is already installed" 
-                else 
-                    case ${Command} in 
-                        netstat)
-                            sudo ${PackageManager} install -y -q  net-tools  && echo -e "\t\t\t\tnet-tools is not installed ,installing .."
-                            ;;
-                        *)
-                            sudo ${PackageManager} install -y -q  ${Command}  && echo -e "\t\t\t\t${Command} is not installed ,installing .."
-                            ;;
-                    esac
-                fi
-                [ ${Command} = "at" ] &&  sudo  systemctl stop atd  ; sudo nohup atd -b 1 -l $(cat /proc/cpuinfo|grep processor|wc -l)  & &> /dev/null
-            fi
-        done
-    done
 }
 #3-Expand ips function 
 expand_ips() {   
@@ -321,14 +379,25 @@ generate_listeners () {
                 if [ \${exit_status} -ne 0 ]
                 then
                     echo -e \$(date +'%Y_%m_%d_%H_%M_%S:') ${ListenerIP}:\${Port}:tcp was down , bringing it up for ${ListenDurationInMinutes} Minutes &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
-                    echo "socat TCP-L:\${Port},reuseaddr,fork,bind=${ListenerIP} SYSTEM:'echo tcp:${ConfFileName}-${ExecutionDate}-${BlockName}'"|at now
+                    if [ ${TCPPackage} = socat ]
+                    then
+                        echo "socat TCP-L:\${Port},reuseaddr,fork,bind=${ListenerIP} SYSTEM:'echo tcp:${ConfFileName}-${ExecutionDate}-${BlockName}'"|at now
+                    elif [ ${TCPPackage} = nc ]
+                    then
+                        echo "nc -4kl ${ListenerIP} \${Port}"|at now
+                    fi
                 else
                     echo \$(date +'%Y_%m_%d_%H_%M_%S:') ${ListenerIP}:\${Port}:tcp was up , no change needed &>>  ${REMOTESAVE}/${BlockName}-LocalLogs/${ListenerIP}-tcp.log
                 fi
             done
             echo up >> ${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-TCP-ListenPorts.txt
-            echo pkill -9 -f \"SYSTEM:echo tcp:${ConfFileName}-${ExecutionDate}-${BlockName}\"|at now +${ListenDurationInMinutes} minutes
-
+            if [ ${TCPPackage} = socat ]
+            then
+                echo pkill -9 -f \"SYSTEM:echo tcp:${ConfFileName}-${ExecutionDate}-${BlockName}\"|at now +${ListenDurationInMinutes} minutes
+            elif [ ${TCPPackage} = nc ]
+            then
+                echo pkill -9 -f \"nc -4kl ${ListenerIP}\"|at now +${ListenDurationInMinutes} minutes
+            fi
 TCPLSNR
             [ -z ${UDPPorts} ] || cat <<UDPLSNR > ${LOCALSAVE}/${BlockName}-Scripts/Listeners/${ListenerIP}-udp.sh
             #!/bin/bash
@@ -368,7 +437,12 @@ generate_testers () {
                 for Port in ${Expanded_TCPPorts}
                 do
                     echo "\$(date +'%Y_%m_%d_%H_%M_%S:') Test tcp ${TesterIP}=>${ListenerIP}:\${Port}" &>> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log
-                    socat  /dev/null  tcp4:${ListenerIP}:\${Port},connect-timeout=2
+                    if [ ${TCPPackage} = socat ]
+                    then
+                        socat  /dev/null  tcp4:${ListenerIP}:\${Port},connect-timeout=2
+                    elif [ ${TCPPackage} = nc ]
+                        nc -vz -w 2 ${ListenerIP} \${Port}
+                    fi
                     exit_status=\$?
                     if [ \${exit_status} -eq 0 ]
                     then
@@ -379,7 +453,7 @@ generate_testers () {
                 done
                 Success=\$(grep -c  "is up" ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-tcp.txt)
                 Failure=\$(expr ${Total_TCP} - \${Success} )
-                echo -e "BlockName,TesterIP,ListenerIP,Protocol,Total,Success,Failure\n${BlockName},${TesterIP},${ListenerIP},tcp,${Total_TCP},\${Success},\${Failure}" >> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log
+                echo -e "BlockName,TesterIP,ListenerIP,Ports,Protocol,Total,Success,Failure\n${BlockName},${TesterIP},${ListenerIP},\"${TCPPorts}\",tcp,${Total_TCP},\${Success},\${Failure}" >> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-tcp.log
                 echo  "${TesterIP}-${ListenerIP}-tcp" >> ${REMOTESAVE}/Flags/${BlockName}-${TesterIP}-AllTested
 TCPTSTR
             [ -z ${UDPPorts} ] || cat <<UDPTSTR > ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-udp.sh
@@ -402,7 +476,7 @@ TCPTSTR
             done
             Success=\$(grep -c  "is up" ${REMOTESAVE}/${BlockName}-LocalReports/${TesterIP}-${ListenerIP}-udp.txt)
             Failure=\$(expr ${Total_UDP} - \${Success} )
-            echo -e "BlockName,TesterIP,ListenerIP,Protocol,Total,Success,Failure\n${BlockName},${TesterIP},${ListenerIP},udp,${Total_UDP},\${Success},\${Failure}" >> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log
+            echo -e "BlockName,TesterIP,ListenerIP,Ports,Protocol,Total,Success,Failure\n${BlockName},${TesterIP},${ListenerIP},\"${UDPPorts}\",udp,${Total_UDP},\${Success},\${Failure}" >> ${REMOTESAVE}/${BlockName}-LocalLogs/${TesterIP}-${ListenerIP}-udp.log
             echo  "${TesterIP}-${ListenerIP}-udp" >> ${REMOTESAVE}/Flags/${BlockName}-${TesterIP}-AllTested
 UDPTSTR
 }
@@ -427,11 +501,21 @@ do
     echo -e "\$(date +'%Y_%m_%d_%H_%M_%S:') Logs will be gathered once all testers reports gathered sleep for 120 seconds  " >> ${LOCALSAVE}/${ConfFileName}.log
     sleep 80 
 done
-for IP in ${ALLIPsUniq}
-do
-    scp -rP ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@\${IP}:${REMOTESAVE}/${BlockName}-LocalLogs ${LOCALSAVE}/${BlockName}-Logs/\${IP}
-    echo -e "\$(date +'%Y_%m_%d_%H_%M_%S:') ${BlockName}:\${IP} logs gathered saved to ${LOCALSAVE}/${BlockName}-Logs/" >>  ${LOCALSAVE}/${ConfFileName}.log
-done
+if [ ${TCPTestOnly} = false ]
+then
+    for IP in ${ALLIPsUniq}
+    do
+        scp -rP ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@\${IP}:${REMOTESAVE}/${BlockName}-LocalLogs ${LOCALSAVE}/${BlockName}-Logs/\${IP}
+        echo -e "\$(date +'%Y_%m_%d_%H_%M_%S:') ${BlockName}:\${IP} logs gathered saved to ${LOCALSAVE}/${BlockName}-Logs/" >>  ${LOCALSAVE}/${ConfFileName}.log
+    done
+elif [ ${TCPTestOnly} = true ]
+then
+    for TesterIP in ${Expanded_TestersIPs}
+    do
+        scp -rP ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@\${TesterIP}:${REMOTESAVE}/${BlockName}-LocalLogs ${LOCALSAVE}/${BlockName}-Logs/\${TesterIP}
+        echo -e "\$(date +'%Y_%m_%d_%H_%M_%S:') ${BlockName}:\${TesterIP} logs gathered saved to ${LOCALSAVE}/${BlockName}-Logs/" >>  ${LOCALSAVE}/${ConfFileName}.log
+    done   
+fi
 echo -e "\$(date):all ${BlockName} logs gathered saved to ${LOCALSAVE}/${BlockName}-Logs/" >>  ${LOCALSAVE}/${ConfFileName}.log
 ###generate stats
 echo -e "\$(date +'%Y_%m_%d_%H_%M_%S:') ${BlockName} testing stats saved to ${LOCALSAVE}/${ConfFileName}.csv " >>  ${LOCALSAVE}/${ConfFileName}.log
@@ -439,23 +523,6 @@ tail -n 1  ${LOCALSAVE}/${BlockName}-Logs/*/*-*-*.log|egrep -v '=|^$' >> ${LOCAL
 LOGCOLLECTOR
 }
 ######################Start######################
-mkdir -p ${LOCALSAVE}
-echo -e "[*] - Start Basic Validation"|tee -a ${LOCALSAVE}/${ConfFileName}.log
-#essential Validation 
-#validate Linux shell and configuration file provided
-if [ $(uname -s) != "Linux" ] 
-then 
-    Raise_Error 2 |tee -a ${LOCALSAVE}/${ConfFileName}.log
-else
-    echo -e "\tCurrent Shell : ok" |tee -a ${LOCALSAVE}/${ConfFileName}.log
-fi
-if [ -z $1 ] 
-then 
-    Raise_Error 1 |tee -a ${LOCALSAVE}/${ConfFileName}.log
-else 
-    echo -e "\tConfiguration File : ok"| tee -a ${LOCALSAVE}/${ConfFileName}.log
-fi
-
 #validate no duplicate BlockNames/BlockAttributesNames
 echo -e "\tChecking Duplicate Block Names:" |tee -a ${LOCALSAVE}/${ConfFileName}.log
 for BlockName in ${BlocksNames}
@@ -481,7 +548,7 @@ do
     done
     echo -e "\t\t${BlockName} Attributes : ok" |tee -a ${LOCALSAVE}/${ConfFileName}.log
 done
-#make sure the current host have socat/at
+#make sure the current host have TCPPackage/at
 Validate_Install_Dependencies localhost |tee -a ${LOCALSAVE}/${ConfFileName}.log
 #write to $CONFPATH
 echo -e "[*] - create a well formatted configuration file at : \033[0;32m  ${CONFPATH} \033[0m " |tee -a ${LOCALSAVE}/${ConfFileName}.log
@@ -496,7 +563,7 @@ do
 			for BlockAttributeName in ${BlockAttributesNames}
 			do
 				case ${BlockAttributeName} in
-					User|Mode|ListenDurationInMinutes)
+					User|Mode|ListenDurationInMinutes|TCPPackage|TCPTestOnly)
                         unset BlockAttributeContent
             	        BlockAttributeContent=$(echo "${BlockContent}"|grep -i ${BlockAttributeName}|cut -d':' -f2)
 						case ${BlockAttributeName} in
@@ -509,6 +576,12 @@ do
 							ListenDurationInMinutes)
 								echo "Default_ListenDurationInMinutes:${BlockAttributeContent}" >> ${CONFPATH}
 							;;
+                            TCPPackage)
+                            	echo "Default_TCPPackage:${BlockAttributeContent}" >> ${CONFPATH}
+                            ;;
+                            TCPTestOnly)
+                            	echo "Default_TCPTestOnly:${BlockAttributeContent}" >> ${CONFPATH}
+                            ;;
 						esac
 					    ;;
 					*)
@@ -521,7 +594,7 @@ do
 			for BlockAttributeName in ${BlockAttributesNames}
 			do
 				case ${BlockAttributeName} in
-					User|Mode|ListenDurationInMinutes|TCPPorts|UDPPorts|IPs|TestersIPs|ListenersIPs)
+					User|Mode|ListenDurationInMinutes|TCPPackage|TCPTestOnly|TCPPorts|UDPPorts|IPs|TestersIPs|ListenersIPs)
 						case ${BlockAttributeName} in
 							User|Mode|ListenDurationInMinutes|TCPPorts|UDPPorts)
                                 unset BlockAttributeContent
@@ -536,6 +609,12 @@ do
                                     ListenDurationInMinutes)
                                         echo "${BlockName}_ListenDurationInMinutes:${BlockAttributeContent}" >> ${CONFPATH}
                                     ;;
+                                    TCPPackage)
+                                        echo "${BlockName}_TCPPackage:${BlockAttributeContent}" >> ${CONFPATH}
+                                    ;;
+                                    TCPTestOnly)
+                                        echo "${BlockName}_TCPTestOnly:${BlockAttributeContent}" >> ${CONFPATH}
+                                    ;;                                    
                                     TCPPorts)
                                         echo "${BlockName}_TCPPorts:${BlockAttributeContent}" >> ${CONFPATH}
                                     ;;
@@ -576,7 +655,7 @@ for BlockName in ${BlocksNames}
 do
 	if [ ${BlockName} != "Default" ]
 	then 
-		for BlockAttributeName in User Mode ListenDurationInMinutes
+		for BlockAttributeName in User Mode ListenDurationInMinutes TCPPackage TCPTestOnly
 		do
 			grep -q ${BlockName}_${BlockAttributeName} ${CONFPATH}
             exit_status=$? 
@@ -601,6 +680,7 @@ do
 				egrep -q "${BlockName}_TestersIPs|${BlockName}_ListenersIPs" ${CONFPATH} &&	Raise_Error 6 "TestersIPs/ListenersIPs" "bi mode should not have TestersIPs/ListenersIPs"
 				grep -q "${BlockName}_IPs" ${CONFPATH} || Raise_Error 5 "IPs" "bi mode should have IPs"
 				egrep -q  "${BlockName}_TCPPorts|${BlockName}_UDPPorts" ${CONFPATH} || Raise_Error 5  "TCPPorts/UDPPorts" "at least one should be specified "
+                egrep -q  "${BlockName}_TCPTestOnly" ${CONFPATH} || Raise_Error 5
 			    ;;
 			uni)
 				grep -q "${BlockName}_IPs" ${CONFPATH} &&	Raise_Error 6 "IPs" "uni mode should not have IPs"
@@ -612,6 +692,13 @@ do
                 Raise_Error 5 ${Mode} "mode should be uni/bi"
 			    ;;
 		esac
+        unset TCPPackage UDPPorts
+        TCPPackage=$( grep ${BlockName}_TCPPackage ${CONFPATH}|cut -d ':' -f2 )
+        UDPPorts=$( grep ${BlockName}_UDPPorts ${CONFPATH}|cut -d ':' -f2 )
+        TCPTestOnly==$( grep ${BlockName}_TCPTestOnly ${CONFPATH}|cut -d ':' -f2 )
+        [ ${TCPPackage} = nc ] && ! [ -z ${UDPPorts} ] && Raise_Error 6 "nc" "nc can not be used to test udp ports" 
+        [ ${TCPTestOnly} = nc ] && ! [ -z ${UDPPorts} ] && Raise_Error 6 "TCPTestOnly is true" "to test udp remote access to listeners" 
+
 	fi
 done
 #validate the attributes values
@@ -632,21 +719,35 @@ do
     grep -q ${BlockName}_IPs ${CONFPATH} 			&&  IPs=$(grep ${BlockName}_IPs ${CONFPATH}|cut -d ':' -f2) 					&& Validate_IPS ${IPs}  IPs
     grep -q ${BlockName}_TestersIPs ${CONFPATH} 	&&  TestersIPs=$(grep ${BlockName}_TestersIPs ${CONFPATH}|cut -d ':' -f2)		&& Validate_IPS ${TestersIPs} TestersIPs
     grep -q ${BlockName}_ListenersIPs ${CONFPATH} 	&&  ListenersIPs=$(grep ${BlockName}_ListenersIPs ${CONFPATH}|cut -d ':' -f2)	&& Validate_IPS ${ListenersIPs} ListenersIPs
+    grep -q ${BlockName}_TCPTestOnly ${CONFPATH}    &&  TCPTestOnly=$( grep ${BlockName}_TCPTestOnly ${CONFPATH}|cut -d ':' -f2 )   && echo ${TCPTestOnly}|egrep -q "true|false" || Raise_Error 7 ${TCPTestOnly} "TCPTestOnly Should be true or false"
+    grep -q ${BlockName}_TCPPackage ${CONFPATH}     &&  TCPPackage=$( grep ${BlockName}_TCPPackage ${CONFPATH}|cut -d ':' -f2 )   && echo ${TCPPackage}|egrep -q "nc|socat" || Raise_Error 7 ${TCPPackage} "TCPPackage Should be nc or socat" 
     if [ ${BlockName} != Default ]
     then 
-        unset User  Mode IPs TestersIPs ListenersIPs Expanded_TestersIPs Expanded_ListenersIPs ALLIPsUniq
+        unset User  Mode IPs TestersIPs ListenersIPs Expanded_TestersIPs Expanded_ListenersIPs ALLIPsUniq TCPTestOnly TCPTestOnly
         User=$(grep ${BlockName}_User ${CONFPATH}|cut -d':' -f2)
         Mode=$(grep ${BlockName}_Mode ${CONFPATH}|cut -d':' -f2)
+        TCPTestOnly=$( grep ${BlockName}_TCPTestOnly ${CONFPATH}|cut -d ':' -f2 )
+        TCPPackage=$( grep ${BlockName}_TCPPackage ${CONFPATH}|cut -d ':' -f2 )
         [ ${Mode} = bi ] && ListenersIPs=$(grep ${BlockName}_IPs ${CONFPATH}|cut -d':' -f2) || ListenersIPs=$(grep ${BlockName}_ListenersIPs ${CONFPATH}|cut -d':' -f2)
         [ ${Mode} = bi ] && TestersIPs=$(grep ${BlockName}_IPs ${CONFPATH}|cut -d':' -f2) || TestersIPs=$(grep ${BlockName}_TestersIPs ${CONFPATH}|cut -d':' -f2)
         expand_ips "TestersIPs:${TestersIPs}"
         expand_ips "ListenersIPs:${ListenersIPs}"
         ALLIPsUniq=$(echo "${Expanded_TestersIPs} ${Expanded_ListenersIPs}"|tr ' ' '\n'|sort|uniq|tr '\n' ' ')
-        for IP in ${ALLIPsUniq}
-        do
-                Validate_Access ${IP} 
-                ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${IP} "$(typeset -f Validate_Install_Dependencies);  Validate_Install_Dependencies ${IP}" |tee -a ${LOCALSAVE}/${ConfFileName}.log
-        done
+        if [ ${TCPTestOnly} = false ]
+        then
+            for IP in ${ALLIPsUniq}
+            do
+                    Validate_Access ${IP} 
+                    ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${IP} "$(typeset -f Validate_Install_Dependencies);  Validate_Install_Dependencies ${IP}" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+            done
+        elif [ ${TCPTestOnly} = true ]
+        then
+            for TesterIP in ${Expanded_TestersIPs}
+            do
+                    Validate_Access ${TesterIP} 
+                    ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${TesterIP} "$(typeset -f Validate_Install_Dependencies);  Validate_Install_Dependencies ${TesterIP}" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+            done
+        fi
     fi
 done
 echo -e "[*] - create/execute Listeners/Testers scripts:"  |tee -a ${LOCALSAVE}/${ConfFileName}.log
@@ -656,11 +757,13 @@ do
     if [ ${BlockName} != Default ]
     then 
         echo -e "\t\033[0;32m${BlockName}\033[0m:" |tee -a ${LOCALSAVE}/${ConfFileName}.log
-        unset User ListenDurationInMinutes Mode IPs TestersIPs ListenersIPs TCPPorts UDPPorts Expanded_TestersIPs Expanded_ListenersIPs
+        unset User ListenDurationInMinutes Mode IPs TestersIPs ListenersIPs TCPPorts UDPPorts Expanded_TestersIPs Expanded_ListenersIPs TCPTestOnly TCPPackage
         mkdir -p ${LOCALSAVE}/${BlockName}-Scripts/{Listeners,Testers,ReportsGathering}/
         mkdir -p ${LOCALSAVE}/${BlockName}-{Reports,Logs}
         User=$(grep ${BlockName}_User ${CONFPATH}|cut -d':' -f2)
         ListenDurationInMinutes=$(grep ${BlockName}_ListenDurationInMinutes ${CONFPATH}|cut -d':' -f2)
+        TCPTestOnly=$( grep ${BlockName}_TCPTestOnly ${CONFPATH}|cut -d ':' -f2 )
+        TCPPackage=$( grep ${BlockName}_TCPPackage ${CONFPATH}|cut -d ':' -f2 )        
         grep -q ${BlockName}_TCPPorts ${CONFPATH} &&  TCPPorts=$( grep ${BlockName}_TCPPorts ${CONFPATH}|cut -d ':' -f2 )
         grep -q ${BlockName}_UDPPorts ${CONFPATH} &&  UDPPorts=$( grep ${BlockName}_UDPPorts ${CONFPATH}|cut -d ':' -f2 )
         Mode=$(grep ${BlockName}_Mode ${CONFPATH}|cut -d':' -f2)
@@ -682,66 +785,88 @@ do
         [ -z ${UDPPorts} ] || expand_ports "UDPPorts:${UDPPorts}"
         export -f generate_testers
         # take the listener spaced ips and generate the scripts
-        grep -q ${BlockName}_TCPPorts ${CONFPATH} &> /dev/null
-        exit_status=$?
-        if [ ${exit_status} -eq 0 ]
+        if [ ${TCPTestOnly} = false ]
         then
-            for ListenerIP in ${Expanded_ListenersIPs}
-            do 
-                echo -e "\t\tListener:\033[0;32m ${ListenerIP}  ok \033[0m " |tee -a ${LOCALSAVE}/${ConfFileName}.log
-                generate_listeners
-                ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${ListenerIP} ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Listeners/${ListenerIP}-tcp.sh &> /dev/null
-                for TesterIP  in ${Expanded_TestersIPs}
-                do
-                    [ ${TesterIP} = ${ListenerIP} ] && continue
-                    echo -e "\t\t\tTester:${TesterIP}-TCP Will be executed once all listener ports ready" |tee -a ${LOCALSAVE}/${ConfFileName}.log
-                    generate_testers
-                    echo  "${TesterIP}-${ListenerIP}-tcp" >> ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ExpectedDoneList
-                    cat <<TCPTASK | at now  &> /dev/null
-                    scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${ListenerIP}:${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-TCP-ListenPorts.txt ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${ListenerIP}-ALL-TCP-Listen.txt &> /dev/null
-                    until [ "\$(grep up ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${ListenerIP}-ALL-TCP-Listen.txt )" = "up" ]
+            grep -q ${BlockName}_TCPPorts ${CONFPATH} &> /dev/null
+            exit_status=$?
+            if [ ${exit_status} -eq 0 ]
+            then
+                for ListenerIP in ${Expanded_ListenersIPs}
+                do 
+                    echo -e "\t\tListener:\033[0;32m ${ListenerIP}  ok \033[0m " |tee -a ${LOCALSAVE}/${ConfFileName}.log
+                    generate_listeners
+                    ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no  ${User}@${ListenerIP} ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Listeners/${ListenerIP}-tcp.sh &> /dev/null
+                    for TesterIP  in ${Expanded_TestersIPs}
                     do
-                        sleep 60
+                        [ ${TesterIP} = ${ListenerIP} ] && continue
+                        echo -e "\t\t\tTester:${TesterIP}-TCP Will be executed once all listener ports ready" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+                        generate_testers
+                        echo  "${TesterIP}-${ListenerIP}-tcp" >> ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ExpectedDoneList
+                        cat <<TCPTASK | at now  &> /dev/null
                         scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${ListenerIP}:${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-TCP-ListenPorts.txt ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${ListenerIP}-ALL-TCP-Listen.txt &> /dev/null
-                    done
-                    echo -e "$(date +'%Y_%m_%d_%H_%M_%S:') Tester:tcp:${TesterIP}=>${ListenerIP} started" >> ${LOCALSAVE}/${ConfFileName}.log
-                    ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD}  < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-tcp.sh &> /dev/null
+                        until [ "\$(grep up ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${ListenerIP}-ALL-TCP-Listen.txt )" = "up" ]
+                        do
+                            sleep 60
+                            scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${ListenerIP}:${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-TCP-ListenPorts.txt ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${ListenerIP}-ALL-TCP-Listen.txt &> /dev/null
+                        done
+                        echo -e "$(date +'%Y_%m_%d_%H_%M_%S:') Tester:tcp:${TesterIP}=>${ListenerIP} started" >> ${LOCALSAVE}/${ConfFileName}.log
+                        ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD}  < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-tcp.sh &> /dev/null
 TCPTASK
-                done
-            done
-        fi
-        grep -q ${BlockName}_UDPPorts ${CONFPATH}  &> /dev/null
-        exit_status=$?
-        if [ ${exit_status} -eq 0 ]
-        then
-            for ListenerIP in ${Expanded_ListenersIPs}
-            do 
-                echo -e "\t\tListener:\033[0;32m ${ListenerIP}  ok \033[0m " |tee -a ${LOCALSAVE}/${ConfFileName}.log
-                generate_listeners
-                ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${ListenerIP} ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Listeners/${ListenerIP}-udp.sh &> /dev/null
-                for TesterIP  in ${Expanded_TestersIPs}
-                do
-                    [ ${TesterIP} = ${ListenerIP} ] && continue 
-                    echo -e "\t\t\tTester:${TesterIP}-UDP Will be executed once all listener ports ready" |tee -a ${LOCALSAVE}/${ConfFileName}.log
-                    generate_testers
-                    echo  "${TesterIP}-${ListenerIP}-udp" >> ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ExpectedDoneList
-                    cat <<UDPTASK | at now &> /dev/null
-                    scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${ListenerIP}:${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-UDP-ListenPorts.txt ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${ListenerIP}-ALL-UDP-Listen.txt &> /dev/null
-                    until [ "\$(grep up ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${ListenerIP}-ALL-UDP-Listen.txt )" = "up" ]
-                    do
-                        sleep 60
-                        scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${ListenerIP}:${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-UDP-ListenPorts.txt ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${ListenerIP}-ALL-UDP-Listen.txt &> /dev/null
                     done
-                    echo -e "$(date +'%Y_%m_%d_%H_%M_%S:') Tester:udp:${TesterIP}=>${ListenerIP} started" >> ${LOCALSAVE}/${ConfFileName}.log
-                    ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-udp.sh &> /dev/null
-UDPTASK
                 done
-            done
+            fi
+            grep -q ${BlockName}_UDPPorts ${CONFPATH}  &> /dev/null
+            exit_status=$?
+            if [ ${exit_status} -eq 0 ]
+            then
+                for ListenerIP in ${Expanded_ListenersIPs}
+                do 
+                    echo -e "\t\tListener:\033[0;32m ${ListenerIP}  ok \033[0m " |tee -a ${LOCALSAVE}/${ConfFileName}.log
+                    generate_listeners
+                    ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${ListenerIP} ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Listeners/${ListenerIP}-udp.sh &> /dev/null
+                    for TesterIP  in ${Expanded_TestersIPs}
+                    do
+                        [ ${TesterIP} = ${ListenerIP} ] && continue 
+                        echo -e "\t\t\tTester:${TesterIP}-UDP Will be executed once all listener ports ready" |tee -a ${LOCALSAVE}/${ConfFileName}.log
+                        generate_testers
+                        echo  "${TesterIP}-${ListenerIP}-udp" >> ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ExpectedDoneList
+                        cat <<UDPTASK | at now &> /dev/null
+                        scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${ListenerIP}:${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-UDP-ListenPorts.txt ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${ListenerIP}-ALL-UDP-Listen.txt &> /dev/null
+                        until [ "\$(grep up ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${ListenerIP}-ALL-UDP-Listen.txt )" = "up" ]
+                        do
+                            sleep 60
+                            scp -P ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${ListenerIP}:${REMOTESAVE}/Flags/${BlockName}-${ListenerIP}-ALL-UDP-ListenPorts.txt ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${ListenerIP}-ALL-UDP-Listen.txt &> /dev/null
+                        done
+                        echo -e "$(date +'%Y_%m_%d_%H_%M_%S:') Tester:udp:${TesterIP}=>${ListenerIP} started" >> ${LOCALSAVE}/${ConfFileName}.log
+                        ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD} < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-udp.sh &> /dev/null
+UDPTASK
+                    done
+                done
+            fi
+        elif [ ${TCPTestOnly} = true ]
+        then
+            grep -q ${BlockName}_TCPPorts ${CONFPATH} &> /dev/null
+            exit_status=$?
+            if [ ${exit_status} -eq 0 ]
+            then
+                for ListenerIP in ${Expanded_ListenersIPs}
+                do 
+                    echo -e "\t\tListener:\033[0;32m ${ListenerIP}  ok \033[0m " |tee -a ${LOCALSAVE}/${ConfFileName}.log
+                    for TesterIP  in ${Expanded_TestersIPs}
+                    do
+                        [ ${TesterIP} = ${ListenerIP} ] && continue
+                        generate_testers
+                        echo  "${TesterIP}-${ListenerIP}-tcp" >> ${LOCALSAVE}/${BlockName}-Scripts/ReportsGathering/${TesterIP}-ExpectedDoneList
+                        echo -e "$(date +'%Y_%m_%d_%H_%M_%S:') Tester:tcp:${TesterIP}=>${ListenerIP} started" >> ${LOCALSAVE}/${ConfFileName}.log
+                        ssh -p ${SSH_PORT} -q -o StrictHostKeyChecking=no ${User}@${TesterIP}  ${ATCMD}  < ${LOCALSAVE}/${BlockName}-Scripts/Testers/${TesterIP}-${ListenerIP}-tcp.sh &> /dev/null
+                    done
+                done
+            fi
         fi
     fi
 done  
 echo -e "[*] - Create LocalTasks for Reports Gathering" |tee -a ${LOCALSAVE}/${ConfFileName}.log
-echo 'BlockName,TesterIP,ListenerIP,Protocol,Total,Success,Failure' > ${LOCALSAVE}/${ConfFileName}.csv
+echo 'BlockName,TesterIP,ListenerIP,Ports,Protocol,Total,Success,Failure' > ${LOCALSAVE}/${ConfFileName}.csv
 for BlockName in ${BlocksNames}
 do
     if [ ${BlockName} != Default ]
