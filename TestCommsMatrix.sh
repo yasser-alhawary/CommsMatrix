@@ -80,7 +80,10 @@ Raise_Error () {
 if [ -z $1 ] 
 then 
     Raise_Error 1
-else 
+elif ! [ -f $1 ]
+then 
+    Raise_Error 1
+else
     echo -e "\tConfiguration File : ok"
 fi
 
@@ -517,7 +520,7 @@ then
         echo -e "\$(date +'%Y_%m_%d_%H_%M_%S:') ${BlockName}:\${TesterIP} logs gathered saved to ${LOCALSAVE}/${BlockName}-Logs/" >>  ${LOCALSAVE}/${ConfFileName}.log
     done   
 fi
-echo -e "\$(date):all ${BlockName} logs gathered saved to ${LOCALSAVE}/${BlockName}-Logs/" >>  ${LOCALSAVE}/${ConfFileName}.log
+echo -e "\$(date +'%Y_%m_%d_%H_%M_%S:'):all ${BlockName} logs gathered saved to ${LOCALSAVE}/${BlockName}-Logs/" >>  ${LOCALSAVE}/${ConfFileName}.log
 ###generate stats
 echo -e "\$(date +'%Y_%m_%d_%H_%M_%S:') ${BlockName} testing stats saved to ${LOCALSAVE}/${ConfFileName}.csv " >>  ${LOCALSAVE}/${ConfFileName}.log
 tail -n 1  ${LOCALSAVE}/${BlockName}-Logs/*/*-*-*.log|egrep -v '=|^$' >> ${LOCALSAVE}/${ConfFileName}.csv
